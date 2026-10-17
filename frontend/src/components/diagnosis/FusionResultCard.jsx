@@ -12,7 +12,8 @@ export const FusionResultCard = ({ patient }) => {
     fusionExplanation: 'Deep late-fusion decision layer combined visual merozoites (65%) and anemic CBC indicators (35%).'
   };
 
-  const isPositive = patient.primaryPrediction?.toLowerCase().includes('positive') || !patient.primaryPrediction?.toLowerCase().includes('negative');
+  const isPositive = !patient.primaryPrediction?.toLowerCase().includes('negative') && 
+    (patient.primaryPrediction?.toLowerCase().includes('positive') || patient.primaryPrediction?.toLowerCase().includes('babesiosis'));
 
   return (
     <div className="bg-slate-900 text-white rounded-2xl p-6 sm:p-8 border border-slate-800 shadow-2xl relative overflow-hidden space-y-6">
@@ -51,7 +52,9 @@ export const FusionResultCard = ({ patient }) => {
             </span>
           </div>
           <p className="text-xs text-slate-300">
-            Detected intracellular parasite merozoite inclusions. High spatial feature correlation.
+            {isPositive 
+              ? 'Detected intracellular parasite merozoite inclusions. High spatial feature correlation.'
+              : 'Clean erythrocyte morphology. No intra-erythrocytic piroplasm inclusions detected.'}
           </p>
           <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
             <div className="bg-teal-500 h-full rounded-full" style={{ width: `${fusion.visualWeight * 100}%` }} />
@@ -76,7 +79,9 @@ export const FusionResultCard = ({ patient }) => {
             </span>
           </div>
           <p className="text-xs text-slate-300">
-            Marked hemolytic anemia (PCV 28%, RBC 4.2) and mild thrombocytopenia profile.
+            {isPositive 
+              ? 'Marked hemolytic anemia (PCV 28%, RBC 4.2) and mild thrombocytopenia profile.'
+              : 'Erythrocyte and platelet indices within baseline boundaries.'}
           </p>
           <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
             <div className="bg-sky-500 h-full rounded-full" style={{ width: `${fusion.hematologicalWeight * 100}%` }} />

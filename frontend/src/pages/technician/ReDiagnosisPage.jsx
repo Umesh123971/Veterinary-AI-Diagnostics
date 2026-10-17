@@ -27,7 +27,23 @@ export const ReDiagnosisPage = () => {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [imageReplaced, setImageReplaced] = useState(false);
   const [reportReplaced, setReportReplaced] = useState(false);
-  const [isReDiagnosing, setIsReDiagnosing] = useState(false);
+  const [customSmearImage, setCustomSmearImage] = useState(null);
+  const [viewZoomModal, setViewZoomModal] = useState(false);
+
+  const handleSlideUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target.result;
+      setCustomSmearImage(dataUrl);
+      setImageReplaced(true);
+      if (patient) {
+        patient.bloodSmearImage = dataUrl;
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handlePerformReDiagnosis = () => {
     setIsReDiagnosing(true);
@@ -120,10 +136,16 @@ export const ReDiagnosisPage = () => {
           <div className="space-y-4 text-xs">
             <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <img src={patient.bloodSmearImage} alt="Smear" className="w-14 h-14 rounded-lg object-cover border border-slate-700" />
+                <img 
+                  src={customSmearImage || patient.bloodSmearImage} 
+                  alt="Smear" 
+                  className="w-14 h-14 rounded-lg object-cover border-2 border-teal-500/50" 
+                />
                 <div>
                   <h5 className="font-semibold text-white">Giemsa Smear Slide Image</h5>
-                  <p className="text-[10px] text-slate-400 font-mono">{imageReplaced ? 'Re-stained Slide (v2.0)' : 'Original Slide (v1.0)'}</p>
+                  <p className="text-[10px] text-slate-400 font-mono">
+                    {imageReplaced ? 'Re-stained Slide (Uploaded v2.0)' : 'Original Slide (v1.0)'}
+                  </p>
                 </div>
               </div>
               <Badge variant={imageReplaced ? 'success' : 'warning'}>
@@ -132,12 +154,19 @@ export const ReDiagnosisPage = () => {
             </div>
 
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" icon={Eye} className="w-full" onClick={() => alert('Inspecting slide image details.')}>
-                Review Image
-              </Button>
-              <Button variant="primary" size="sm" icon={RefreshCw} className="w-full bg-teal-600 hover:bg-teal-700" onClick={() => setImageReplaced(true)}>
-                Replace Slide Image
-              </Button>
+              <input
+                id="redis-slide-input"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleSlideUpload}
+              />
+              <label
+                htmlFor="redis-slide-input"
+                className="w-full px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-lg cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-sm transition-all"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Select Replacement Slide
+              </label>
             </div>
           </div>
         </Card>

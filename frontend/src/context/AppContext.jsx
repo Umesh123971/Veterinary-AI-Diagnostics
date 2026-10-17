@@ -1,26 +1,71 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { MOCK_USERS, MOCK_PATIENTS, MOCK_NOTIFICATIONS } from '../data/mockData';
+import { authApi, usersApi, patientsApi, notificationsApi } from '../services/api';
 
 const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
-  // Current user state - defaults to Admin for demo convenience, or set on login
+  // Current user state - defaults to Admin for demo convenience
   const [currentUser, setCurrentUser] = useState(MOCK_USERS[0]); 
   const [users, setUsers] = useState(MOCK_USERS);
   const [patients, setPatients] = useState(MOCK_PATIENTS);
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  const [isBackendConnected, setIsBackendConnected] = useState(false);
+
+  // Initial fetch from Django Backend (with fallback to mock data)
+  useEffect(() => {
+    let isMounted = true;
+    const loadBackendData = async () => {
+      try {
+        const [fetchedUsers, fetchedPatients, fetchedNotifs] = await Promise.all([
+          usersApi.getAll().catch(() => null),
+          patientsApi.getAll().catch(() => null),
+          notificationsApi.getAll().catch(() => null)
+        ]);
+
+        if (isMounted) {
+          if (fetchedUsers && Array.isArray(fetchedUsers) && fetchedUsers.length > 0) {
+            setUsers(fetchedUsers);
+            setCurrentUser(fetchedUsers[0]);
+            setIsBackendConnected(true);
+          }
+          if (fetchedPatients && Array.isArray(fetchedPatients) && fetchedPatients.length > 0) {
+            setPatients(fetchedPatients);
+          }
+          if (fetchedNotifs && Array.isArray(fetchedNotifs) && fetchedNotifs.length > 0) {
+            setNotifications(fetchedNotifs);
+          }
+        }
+      } catch (err) {
+        console.warn('Backend API connection pending, running with local mock data.');
+      }
+    };
+
+    loadBackendData();
+    return () => { isMounted = false; };
+  }, []);
 
   // Authentication
-  const login = (email, password) => {
-    const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (foundUser) {
-      setCurrentUser(foundUser);
-      return { success: true, user: foundUser };
+  const login = async (email, password) => {
+    try {
+      const res = await authApi.login(email, password);
+      if (res.success && res.user) {
+        setCurrentUser(res.user);
+        return { success: true, user: res.user };
+      }
+    } catch (err) {
+      // Fallback local auth
+      const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+      if (foundUser) {
+        setCurrentUser(foundUser);
+        return { success: true, user: foundUser };
+      }
     }
     return { success: false, message: 'Invalid credentials. Try admin@vetai.demo, technician@vetai.demo, or doctor@vetai.demo' };
   };
 
   const logout = () => {
+    authApi.logout().catch(() => {});
     setCurrentUser(null);
   };
 
@@ -30,21 +75,33 @@ export const AppProvider = ({ children }) => {
   };
 
   // User Management Actions
-  const addUser = (newUser) => {
+  const addUser = async (newUser) => {
+    const tempId = `USR-00${users.length + 1}`;
     const created = {
       ...newUser,
-      id: `USR-00${users.length + 1}`,
+      id: tempId,
       status: newUser.status || 'Active',
       createdDate: new Date().toISOString().split('T')[0],
       avatar: newUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
     };
+    
+    // Update local UI immediately
     setUsers(prev => [created, ...prev]);
+
+    // Async sync with Django API
+    try {
+      const apiRes = await usersApi.create(newUser);
+      if (apiRes && apiRes.id) {
+        setUsers(prev => prev.map(u => u.id === tempId ? apiRes : u));
+      }
+    } catch (err) {
+      console.warn('User saved locally (Django backend offline).');
+    }
+
     return created;
   };
 
-  const updateUser = (userId, updatedFields) => {
-    // IMPORTANT: Security rule - Administrators cannot directly edit another user's password.
-    // If updatedFields includes password, only allow if currentUser.id === userId
+  const updateUser = async (userId, updatedFields) => {
     const sanitizedFields = { ...updatedFields };
     if (sanitizedFields.password && currentUser?.id !== userId) {
       delete sanitizedFields.password;
@@ -54,14 +111,25 @@ export const AppProvider = ({ children }) => {
     if (currentUser?.id === userId) {
       setCurrentUser(prev => ({ ...prev, ...sanitizedFields }));
     }
+
+    try {
+      await usersApi.update(userId, sanitizedFields);
+    } catch (err) {
+      console.warn('User updated locally.');
+    }
   };
 
-  const deleteUser = (userId) => {
+  const deleteUser = async (userId) => {
     setUsers(prev => prev.filter(u => u.id !== userId));
+    try {
+      await usersApi.delete(userId);
+    } catch (err) {
+      console.warn('User deleted locally.');
+    }
   };
 
   // Patient Actions
-  const addPatient = (newPatientData) => {
+  const addPatient = async (newPatientData) => {
     const id = `PAT-2026-00${patients.length + 1}`;
     const patientObj = {
       id,
@@ -75,7 +143,7 @@ export const AppProvider = ({ children }) => {
       sampleDate: newPatientData.sampleDate || new Date().toISOString().split('T')[0],
       status: newPatientData.status || 'Awaiting Diagnosis',
       clinicalNotes: newPatientData.clinicalNotes || '',
-      bloodSmearImage: newPatientData.bloodSmearImage || 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=800&auto=format&fit=crop&q=80',
+      bloodSmearImage: newPatientData.bloodSmearImage || newPatientData.bloodSmearFile?.url || 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=800&auto=format&fit=crop&q=80',
       cbcReportPdf: newPatientData.cbcReportPdf || `${newPatientData.dogName || 'Patient'}_CBC_Report.pdf`,
       cbcData: newPatientData.cbcData || {
         rbc: { value: 4.5, status: 'Low' },
@@ -89,17 +157,17 @@ export const AppProvider = ({ children }) => {
         eosinophils: { value: 4, status: 'Normal' },
         basophils: { value: 1, status: 'Normal' },
       },
-      primaryPrediction: 'Canine Babesiosis',
-      overallConfidence: 94.2,
-      estimatedParasitemia: 3.5,
-      zoonoticRisk: 'Low',
-      diseasePredictions: {
+      primaryPrediction: newPatientData.primaryPrediction || 'Canine Babesiosis',
+      overallConfidence: newPatientData.overallConfidence !== undefined ? newPatientData.overallConfidence : 94.2,
+      estimatedParasitemia: newPatientData.estimatedParasitemia !== undefined ? newPatientData.estimatedParasitemia : 3.5,
+      zoonoticRisk: newPatientData.zoonoticRisk || 'Low',
+      diseasePredictions: newPatientData.diseasePredictions || {
         ehrlichiosis: { diseaseName: 'Canine Ehrlichiosis', prediction: 'Negative', confidence: 85.0, findings: 'No morulae observed.', imageFindings: 'Clear cytoplasm.', cbcFindings: 'Mild thrombocytopenia.' },
         babesiosis: { diseaseName: 'Canine Babesiosis', prediction: 'Positive', confidence: 94.2, findings: 'Intra-erythrocytic piriform merozoites.', imageFindings: 'Piriform merozoites in RBCs.', cbcFindings: 'Normocytic normochromic anemia.' },
         dirofilariasis: { diseaseName: 'Canine Dirofilariasis', prediction: 'Negative', confidence: 95.0, findings: 'No microfilariae.', imageFindings: 'No elongated structures.', cbcFindings: 'Normal eosinophils.' },
         hepatozoonosis: { diseaseName: 'Canine Hepatozoonosis', prediction: 'Negative', confidence: 90.0, findings: 'No gamont capsules.', imageFindings: 'Normal PMNs.', cbcFindings: 'WBC within limits.' }
       },
-      imageAnnotations: {
+      imageAnnotations: newPatientData.imageAnnotations || {
         infectedRbcCount: 15,
         detectedParasitesCount: 20,
         avgConfidence: 92.0,
@@ -108,7 +176,7 @@ export const AppProvider = ({ children }) => {
           { id: 1, label: 'Babesia Pair', x: 30, y: 40, width: 15, height: 15, confidence: 95.0 }
         ]
       },
-      fusionDetails: {
+      fusionDetails: newPatientData.fusionDetails || {
         visualWeight: 0.65,
         hematologicalWeight: 0.35,
         fusionScore: 0.942,
@@ -127,17 +195,25 @@ export const AppProvider = ({ children }) => {
 
     setPatients(prev => [patientObj, ...prev]);
 
-    // Add notification
     addNotification({
       title: 'New Patient Registered',
       message: `${patientObj.dogName} (${patientObj.breed}) added for diagnostic analysis.`,
       type: 'info'
     });
 
+    try {
+      const apiRes = await patientsApi.create(patientObj);
+      if (apiRes && apiRes.id) {
+        setPatients(prev => prev.map(p => p.id === id ? apiRes : p));
+      }
+    } catch (err) {
+      console.warn('Patient created locally (Django API offline).');
+    }
+
     return patientObj;
   };
 
-  const updatePatientCbc = (patientId, newCbcValues) => {
+  const updatePatientCbc = async (patientId, newCbcValues) => {
     setPatients(prev => prev.map(p => {
       if (p.id === patientId) {
         return {
@@ -147,9 +223,15 @@ export const AppProvider = ({ children }) => {
       }
       return p;
     }));
+
+    try {
+      await patientsApi.updateCbc(patientId, newCbcValues);
+    } catch (err) {
+      console.warn('CBC updated locally.');
+    }
   };
 
-  const runAiDiagnosis = (patientId) => {
+  const runAiDiagnosis = async (patientId, imageInput = null) => {
     setPatients(prev => prev.map(p => {
       if (p.id === patientId) {
         return {
@@ -170,20 +252,30 @@ export const AppProvider = ({ children }) => {
       message: `Multi-modal fusion completed for patient ${patientId}. Sent to Doctor Review queue.`,
       type: 'success'
     });
+
+    try {
+      const res = await patientsApi.runAiDiagnosis(patientId, imageInput);
+      if (res && res.patient) {
+        setPatients(prev => prev.map(p => p.id === patientId ? res.patient : p));
+      }
+    } catch (err) {
+      console.warn('AI Diagnosis executed locally.');
+    }
   };
 
-  const submitDoctorReview = (patientId, action, comments) => {
+  const submitDoctorReview = async (patientId, action, comments) => {
+    const isAccept = action === 'accept';
+    const doctorName = currentUser?.name || 'Dr. Marcus Sterling';
+
     setPatients(prev => prev.map(p => {
       if (p.id === patientId) {
-        const isAccept = action === 'accept';
         const newStatus = isAccept ? 'Diagnosis Complete' : 'Re-diagnosis Requested';
-        
         return {
           ...p,
           status: newStatus,
           doctorReview: {
             status: isAccept ? 'Accepted' : 'Re-diagnosis Requested',
-            doctorName: currentUser?.name || 'Dr. Marcus Sterling',
+            doctorName: doctorName,
             reviewDate: new Date().toLocaleString(),
             comments: comments || (isAccept ? 'Accepted AI-assisted diagnosis findings.' : 'Requested laboratory re-analysis.')
           },
@@ -192,7 +284,7 @@ export const AppProvider = ({ children }) => {
             { 
               date: new Date().toLocaleString(), 
               title: isAccept ? 'Doctor Review Approved' : 'Re-diagnosis Requested by Doctor', 
-              actor: currentUser?.name || 'Doctor' 
+              actor: doctorName 
             }
           ]
         };
@@ -205,9 +297,18 @@ export const AppProvider = ({ children }) => {
       message: `Doctor review submitted for case ${patientId}. Status updated to ${action === 'accept' ? 'Complete' : 'Re-diagnosis Requested'}.`,
       type: action === 'accept' ? 'success' : 'warning'
     });
+
+    try {
+      const res = await patientsApi.submitDoctorReview(patientId, action, comments, doctorName);
+      if (res && res.patient) {
+        setPatients(prev => prev.map(p => p.id === patientId ? res.patient : p));
+      }
+    } catch (err) {
+      console.warn('Doctor review saved locally.');
+    }
   };
 
-  const addNotification = (notif) => {
+  const addNotification = async (notif) => {
     const newNotif = {
       id: `NOTIF-${Date.now()}`,
       title: notif.title,
@@ -217,14 +318,30 @@ export const AppProvider = ({ children }) => {
       read: false
     };
     setNotifications(prev => [newNotif, ...prev]);
+
+    try {
+      await notificationsApi.create(newNotif);
+    } catch (err) {
+      console.warn('Notification logged locally.');
+    }
   };
 
-  const markNotificationRead = (notifId) => {
+  const markNotificationRead = async (notifId) => {
     setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
+    try {
+      await notificationsApi.markRead(notifId);
+    } catch (err) {
+      console.warn('Notification marked read locally.');
+    }
   };
 
-  const clearAllNotifications = () => {
+  const clearAllNotifications = async () => {
     setNotifications([]);
+    try {
+      await notificationsApi.clearAll();
+    } catch (err) {
+      console.warn('Notifications cleared locally.');
+    }
   };
 
   return (
@@ -233,6 +350,7 @@ export const AppProvider = ({ children }) => {
       users,
       patients,
       notifications,
+      isBackendConnected,
       login,
       logout,
       switchRole,

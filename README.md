@@ -37,19 +37,16 @@ An advanced, role-based web platform designed for AI-assisted veterinary diagnos
 
 ## 🛠️ Technology Stack
 
-- **Frontend Core**: [React 18](https://react.dev/) + [Vite](https://vitejs.dev/)
-- **Routing**: [React Router v6](https://reactrouter.com/)
-- **Styling & UI**: [Tailwind CSS v3](https://tailwindcss.com/) + PostCSS + Autoprefixer
-- **Icons**: [Lucide React](https://lucide.dev/)
-- **Data Visualization**: [Recharts](https://recharts.org/)
+- **Frontend**: [React 18](https://react.dev/) + [Vite](https://vitejs.dev/) + [Tailwind CSS v3](https://tailwindcss.com/) + [Lucide React](https://lucide.dev/) + [Recharts](https://recharts.org/)
+- **Backend**: [Python 3.10+](https://www.python.org/) + [Django 5](https://www.djangoproject.com/) + [Django REST Framework](https://www.django-rest-framework.org/) + [django-cors-headers](https://github.com/adamchainz/django-cors-headers)
 
 ---
 
 ## 🚀 Quick Start Guide
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) (v16.0 or higher recommended)
-- [npm](https://www.npmjs.com/) (v8.0 or higher)
+- [Node.js](https://nodejs.org/) (v16.0 or higher) & [npm](https://www.npmjs.com/)
+- [Python](https://www.python.org/) (v3.10 or higher)
 
 ### 1. Clone the Repository
 ```bash
@@ -57,22 +54,56 @@ git clone https://github.com/Umesh123971/Veterinary-AI-Diagnostics.git
 cd Veterinary-AI-Diagnostics
 ```
 
-### 2. Install Dependencies
-```bash
-npm install
-```
+---
 
-### 3. Run Development Server
+### 2. Backend Setup (Django REST API)
+
 ```bash
+cd backend
+
+# Create and activate virtual environment
+python -m venv .venv
+# On Windows:
+.venv\Scripts\activate
+# On Linux/macOS:
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run migrations
+python manage.py migrate
+
+# Seed initial clinical demo data
+python seed_data.py
+
+# Start Django development server
+python manage.py runserver 8000
+```
+Backend API will be running at `http://localhost:8000/api/` (Admin at `http://localhost:8000/admin/`).
+
+---
+
+### 3. Frontend Setup (React + Vite)
+
+In a new terminal window:
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start Vite development server
 npm run dev
 ```
 Open your browser and navigate to `http://localhost:5173`.
 
-### 4. Build for Production
+### 4. Build Frontend for Production
 ```bash
+cd frontend
 npm run build
 ```
-The compiled output will be generated in the `dist/` directory.
+The compiled static assets will be output in `frontend/dist/`.
 
 ---
 
@@ -80,34 +111,36 @@ The compiled output will be generated in the `dist/` directory.
 
 ```
 vetai-diagnostic-system/
-├── src/
-│   ├── components/
-│   │   ├── charts/           # CBC, Disease Distribution & Outcome Charts
-│   │   ├── common/           # Reusable UI components (Buttons, Badges, Modals)
-│   │   ├── diagnosis/        # Microscopic Annotator, Fusion Cards, Workflow Diagrams
-│   │   ├── layout/           # Top Navigation & Sidebar
-│   │   └── users/            # User Management components
-│   ├── context/              # Global AppContext state management
-│   ├── data/                 # Diagnostic mock data & reference schemas
-│   ├── layouts/              # Main Dashboard Layout Shell
-│   ├── pages/
-│   │   ├── admin/            # Admin Dashboard & User Management
-│   │   ├── auth/             # Authentication & Login Page
-│   │   ├── diagnosis/        # Diagnostic Workflows & Results Pages
-│   │   ├── doctor/           # Doctor Review & Decision Support
-│   │   ├── patients/         # Patient Lists & Detail Pages
-│   │   ├── profile/          # User Profile Settings
-│   │   ├── reports/          # Diagnostic Reports Catalog & Viewer
-│   │   └── technician/       # Technician Dashboard & Patient Wizard
-│   ├── routes/               # AppRoutes & Role-based redirect logic
-│   ├── App.jsx
-│   ├── index.css
-│   └── main.jsx
-├── public/
-├── index.html
-├── package.json
-├── tailwind.config.js
-└── vite.config.js
+├── backend/                  # Django REST Framework backend
+│   ├── analytics/            # Analytics aggregation endpoints
+│   ├── diagnostics/          # Multi-modal patient cases & AI models
+│   ├── notifications/        # Real-time alert notifications
+│   ├── users/                # Role-based user accounts & authentication
+│   ├── vetai_backend/        # Django project settings and URLs
+│   ├── manage.py
+│   ├── requirements.txt
+│   └── seed_data.py
+│
+├── frontend/                 # React + Vite frontend application
+│   ├── src/
+│   │   ├── components/       # Charts, common UI, diagnosis widgets
+│   │   ├── context/          # Global AppContext state management
+│   │   ├── data/             # Fallback mock data schemas
+│   │   ├── layouts/          # Main Dashboard layout shell
+│   │   ├── pages/            # Admin, Doctor, Technician & Patient pages
+│   │   ├── routes/           # Role-based route definitions
+│   │   ├── services/         # API integration layer (api.js)
+│   │   ├── App.jsx
+│   │   ├── index.css
+│   │   └── main.jsx
+│   ├── index.html
+│   ├── package.json
+│   ├── postcss.config.js
+│   ├── tailwind.config.js
+│   └── vite.config.js
+│
+├── .gitignore                # Global gitignore for frontend and backend
+└── README.md
 ```
 
 ---
