@@ -36,8 +36,7 @@ export const AddUserModal = ({ isOpen, onClose, initialData = null }) => {
     e.preventDefault();
     const roleLabels = {
       admin: 'Administrator',
-      technician: 'Lab Technician',
-      doctor: 'Doctor / Clinician'
+      technician: 'Lab Technician'
     };
 
     if (initialData) {
@@ -133,7 +132,6 @@ export const AddUserModal = ({ isOpen, onClose, initialData = null }) => {
             >
               <option value="admin">Administrator</option>
               <option value="technician">Lab Technician</option>
-              <option value="doctor">Doctor / Clinician</option>
             </select>
           </div>
           <div>
