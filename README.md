@@ -1,3 +1,11 @@
+# Backend run -> .\.venv\Scripts\Activate.ps1
+# Backend run -> python manage.py runserver 8000
+
+
+
+
+
+
 # 🐾 VetAI - Multi-Modal Veterinary Diagnostic System
 
 An advanced, role-based web platform designed for AI-assisted veterinary diagnostics. **VetAI** integrates multi-modal data inputs—including clinical symptoms, microscopic imagery, and Complete Blood Count (CBC) laboratory metrics—to provide intelligent diagnostic recommendations, automated risk assessments, and clinical decision support for veterinary medical professionals.
@@ -9,14 +17,12 @@ An advanced, role-based web platform designed for AI-assisted veterinary diagnos
 ### 👤 Role-Based Dashboards & Workflows
 - **Administrator Dashboard**:
   - System performance analytics and diagnostic volume monitoring.
-  - Comprehensive user account management (Doctors, Technicians, Admins).
-- **Veterinary Technician Workflow**:
+  - Comprehensive user account management (Administrators and Lab Technicians).
+- **Veterinary Laboratory Technician Workflow**:
   - **Patient Onboarding Wizard**: Step-by-step registration of patient clinical history and metadata.
   - **Diagnostic Data Upload**: Multi-modal upload interface for microscopic slides and CBC lab values.
-  - **Re-Diagnosis Portal**: Submit follow-up analyses and request re-assessments.
-- **Veterinary Doctor / Clinician Review**:
-  - Clinical review interface with confidence scoring and disease probability breakdowns.
-  - Doctor feedback loop for AI diagnostic verification and diagnostic override.
+  - **Laboratory Verification & Sign-Off**: Specialized verification workspace for AI validation, clinical remarks, and official report release.
+  - **Re-Diagnosis Portal**: Submit follow-up analyses and request re-assessments or re-staining.
 
 ---
 
