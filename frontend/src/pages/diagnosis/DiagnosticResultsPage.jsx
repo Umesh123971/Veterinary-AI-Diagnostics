@@ -22,7 +22,7 @@ export const DiagnosticResultsPage = () => {
     <div className="space-y-6">
       <Card
         title="Diagnostic Case Repository"
-        subtitle="Catalog of completed multi-modal AI diagnostic evaluations and clinician sign-offs"
+        subtitle="Catalog of completed multi-modal AI diagnostic evaluations and laboratory verification sign-offs"
         action={
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -46,7 +46,7 @@ export const DiagnosticResultsPage = () => {
                 <th className="py-3 px-4">Primary Prediction</th>
                 <th className="py-3 px-4">Confidence</th>
                 <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Doctor Review</th>
+                <th className="py-3 px-4">Verification Sign-Off</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
