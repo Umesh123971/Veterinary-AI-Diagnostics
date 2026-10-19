@@ -4,7 +4,6 @@ from django.contrib.auth.models import AbstractUser
 ROLE_CHOICES = (
     ('admin', 'Administrator'),
     ('technician', 'Lab Technician'),
-    ('doctor', 'Doctor / Clinician'),
 )
 
 STATUS_CHOICES = (
@@ -16,8 +15,8 @@ STATUS_CHOICES = (
 class CustomUser(AbstractUser):
     custom_id = models.CharField(max_length=50, unique=True, blank=True, null=True)
     name = models.CharField(max_length=255)
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='doctor')
-    role_label = models.CharField(max_length=100, default='Doctor / Clinician')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='technician')
+    role_label = models.CharField(max_length=100, default='Lab Technician')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Active')
     phone = models.CharField(max_length=50, blank=True, default='')
     organization = models.CharField(max_length=255, blank=True, default='')
@@ -36,10 +35,9 @@ class CustomUser(AbstractUser):
         # Set role label if missing
         if self.role == 'admin':
             self.role_label = 'Administrator'
-        elif self.role == 'technician':
+        else:
+            self.role = 'technician'
             self.role_label = 'Lab Technician'
-        elif self.role == 'doctor':
-            self.role_label = 'Doctor / Clinician'
 
         super().save(*args, **kwargs)
 
