@@ -6,19 +6,19 @@ import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { PdfViewerModal } from '../../components/common/PdfViewerModal';
-import { 
-  Upload, 
-  FileText, 
-  Microscope, 
-  CheckCircle2, 
+import {
+  Upload,
+  FileText,
+  Microscope,
+  CheckCircle2,
   AlertTriangle,
-  Eye, 
-  RefreshCw, 
-  Trash2, 
-  ArrowRight, 
-  ArrowLeft, 
-  Edit3, 
-  Cpu, 
+  Eye,
+  RefreshCw,
+  Trash2,
+  ArrowRight,
+  ArrowLeft,
+  Edit3,
+  Cpu,
   Activity,
   Layers,
   Sparkles,
@@ -53,7 +53,7 @@ export const AddPatientWizard = () => {
     contactNumber: '+94 77 123 4567',
     sampleDate: new Date().toISOString().split('T')[0],
     clinicalNotes: 'Presents with pale mucous membranes, high grade intermittent fever (40.1°C), lethargy, and splenomegaly.',
-    
+
     // Media state
     bloodSmearImage: 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=800&auto=format&fit=crop&q=80',
     bloodSmearFile: { name: 'Giemsa_Smear_Max_PAT-001.jpg', size: '2.4 MB', url: 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=800&auto=format&fit=crop&q=80' },
@@ -186,8 +186,8 @@ export const AddPatientWizard = () => {
           prediction: isPos ? 'Positive' : 'Negative',
           confidence: certScore,
           findings: aiRes ? aiRes.status : (isPos ? 'Intra-erythrocytic piriform merozoites.' : 'Normal erythrocytes.'),
-          imageFindings: isPos 
-            ? 'Intra-erythrocytic piriform merozoites detected by Neural Classifier (model.pkl).' 
+          imageFindings: isPos
+            ? 'Intra-erythrocytic piriform merozoites detected by Neural Classifier (model.pkl).'
             : 'Clean erythrocytes, no intra-erythrocytic piroplasms detected.',
           cbcFindings: isPos ? 'Normocytic normochromic anemia.' : 'CBC blood cell baseline within reference limits.'
         },
@@ -195,13 +195,23 @@ export const AddPatientWizard = () => {
         hepatozoonosis: { diseaseName: 'Canine Hepatozoonosis', prediction: 'Negative', confidence: 90.0, findings: 'No gamont capsules.', imageFindings: 'Normal PMNs.', cbcFindings: 'WBC within limits.' }
       },
       imageAnnotations: isPos ? {
-        infectedRbcCount: 15,
-        detectedParasitesCount: 20,
+        infectedRbcCount: (aiRes?.detected_cells && aiRes.detected_cells.length > 0) ? aiRes.detected_cells.length : 15,
+        detectedParasitesCount: (aiRes?.detected_cells && aiRes.detected_cells.length > 0) ? aiRes.detected_cells.length * 2 : 20,
         avgConfidence: certScore,
-        parasitemiaPercent: 3.5,
-        boxes: [
-          { id: 1, label: 'Babesia Merozoite Pair', x: 30, y: 40, width: 15, height: 15, confidence: certScore }
-        ]
+        parasitemiaPercent: aiRes ? Math.min(12.5, Math.max(0.5, Math.round(aiRes.probability * 4.5 * 10) / 10)) : 3.5,
+        boxes: (aiRes?.detected_cells && aiRes.detected_cells.length > 0)
+          ? aiRes.detected_cells.map((c, idx) => ({
+            id: idx + 1,
+            label: 'Babesia Piroplasm',
+            x: c.x,
+            y: c.y,
+            width: c.width,
+            height: c.height,
+            confidence: c.confidence
+          }))
+          : [
+            { id: 1, label: 'Babesia Merozoite Pair', x: 30, y: 40, width: 15, height: 15, confidence: certScore }
+          ]
       } : {
         infectedRbcCount: 0,
         detectedParasitesCount: 0,
@@ -265,13 +275,12 @@ export const AddPatientWizard = () => {
             <div
               key={s.num}
               onClick={() => { if (s.num < currentStep) setCurrentStep(s.num); }}
-              className={`p-3 rounded-lg border text-center transition-all ${
-                s.num === currentStep
+              className={`p-3 rounded-lg border text-center transition-all ${s.num === currentStep
                   ? 'bg-teal-50 border-teal-500 text-teal-900 font-bold shadow-xs'
                   : s.num < currentStep
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800 cursor-pointer'
-                  : 'bg-slate-50 border-slate-200 text-slate-400'
-              }`}
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-800 cursor-pointer'
+                    : 'bg-slate-50 border-slate-200 text-slate-400'
+                }`}
             >
               <div className="text-[10px] uppercase font-mono tracking-wider">Step {s.num}</div>
               <div className="text-xs font-semibold mt-0.5 truncate">{s.title}</div>
@@ -386,12 +395,12 @@ export const AddPatientWizard = () => {
       {currentStep === 2 && (
         <div className="space-y-6">
           {/* Microscope Blood Smear Upload Card */}
-          <Card 
-            title="Upload Microscopic Blood Smear Image" 
+          <Card
+            title="Upload Microscopic Blood Smear Image"
             subtitle="Upload a Giemsa-stained canine blood smear image captured through a microscope."
           >
             <div className="space-y-4">
-              <div 
+              <div
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={(e) => {
@@ -401,9 +410,8 @@ export const AddPatientWizard = () => {
                     handleBloodSmearUpload({ target: { files: e.dataTransfer.files } });
                   }
                 }}
-                className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
-                  isDragging ? 'border-teal-500 bg-teal-100/50' : 'border-teal-300 bg-teal-50/30 hover:bg-teal-50/60'
-                }`}
+                className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${isDragging ? 'border-teal-500 bg-teal-100/50' : 'border-teal-300 bg-teal-50/30 hover:bg-teal-50/60'
+                  }`}
               >
                 <Microscope className="w-10 h-10 text-teal-600 mx-auto mb-2" />
                 <p className="text-sm font-semibold text-slate-800">Drag & Drop Giemsa Blood Smear Image here</p>
@@ -430,10 +438,10 @@ export const AddPatientWizard = () => {
                 <div className="p-4 bg-slate-900 text-white rounded-xl border border-slate-800 space-y-3">
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <img 
-                        src={formData.bloodSmearFile.url} 
-                        alt="Uploaded Smear Preview" 
-                        className="w-20 h-20 rounded-lg object-cover border-2 border-teal-500/50 shadow-md" 
+                      <img
+                        src={formData.bloodSmearFile.url}
+                        alt="Uploaded Smear Preview"
+                        className="w-20 h-20 rounded-lg object-cover border-2 border-teal-500/50 shadow-md"
                       />
                       <div>
                         <h4 className="text-xs font-bold text-white flex items-center gap-2">
@@ -508,8 +516,8 @@ export const AddPatientWizard = () => {
           </Card>
 
           {/* CBC / Hematology Report Upload Card */}
-          <Card 
-            title="Upload CBC / Hematology Report" 
+          <Card
+            title="Upload CBC / Hematology Report"
             subtitle="Upload raw automated analyzer report (PDF or Image)"
           >
             <div className="space-y-4">
@@ -573,9 +581,9 @@ export const AddPatientWizard = () => {
                     <AlertTriangle className="w-3.5 h-3.5 text-amber-500" /> Replace invalid slide to proceed
                   </span>
                 )}
-                <Button 
-                  variant="primary" 
-                  icon={ArrowRight} 
+                <Button
+                  variant="primary"
+                  icon={ArrowRight}
                   onClick={() => {
                     if (slideValidation && slideValidation.is_valid === false) {
                       alert(`⚠️ Invalid Microscopic Slide:\n\n${slideValidation.error || slideValidation.status}\n\nPlease click "Replace" to upload an authentic Giemsa-stained canine blood smear microscopy slide before continuing.`);
@@ -594,8 +602,8 @@ export const AddPatientWizard = () => {
 
       {/* STEP 3: CBC DATA REVIEW */}
       {currentStep === 3 && (
-        <Card 
-          title="3. Extracted Hematological CBC Data Review" 
+        <Card
+          title="3. Extracted Hematological CBC Data Review"
           subtitle="Review auto-extracted values from CBC report. Standard canine reference ranges applied."
           action={
             <div className="flex items-center gap-2">
@@ -670,7 +678,7 @@ export const AddPatientWizard = () => {
         <div className="space-y-6">
           <Card title="4. Complete Case Summary Review" subtitle="Verify all clinical inputs prior to AI deep learning multi-modal fusion">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
-              
+
               {/* Patient Info */}
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                 <h4 className="font-bold text-slate-900 text-sm">Patient Demographics</h4>
@@ -689,10 +697,10 @@ export const AddPatientWizard = () => {
                   <div className="flex items-center justify-between p-2 bg-white rounded border border-slate-200">
                     <div className="flex items-center gap-2">
                       {formData.bloodSmearFile?.url && (
-                        <img 
-                          src={formData.bloodSmearFile.url} 
-                          alt="Smear Thumbnail" 
-                          className="w-8 h-8 rounded object-cover border border-slate-300" 
+                        <img
+                          src={formData.bloodSmearFile.url}
+                          alt="Smear Thumbnail"
+                          className="w-8 h-8 rounded object-cover border border-slate-300"
                         />
                       )}
                       <span className="flex items-center gap-1.5 font-medium">
@@ -704,7 +712,7 @@ export const AddPatientWizard = () => {
                   </div>
                   <div className="flex items-center justify-between p-2 bg-white rounded border border-slate-200">
                     <span className="flex items-center gap-2 font-medium">
-                      <FileText className="w-4 h-4 text-sky-600" /> 
+                      <FileText className="w-4 h-4 text-sky-600" />
                       {formData.cbcReportFile?.name || 'CBC Report'}
                     </span>
                     <span className="text-emerald-700 font-bold text-[10px]">✓ Extracted</span>
@@ -768,8 +776,8 @@ export const AddPatientWizard = () => {
             </div>
 
             <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-              <div 
-                className="bg-teal-400 h-full transition-all duration-500" 
+              <div
+                className="bg-teal-400 h-full transition-all duration-500"
                 style={{ width: `${(aiProgressStage / 5) * 100}%` }}
               />
             </div>
@@ -779,11 +787,11 @@ export const AddPatientWizard = () => {
 
       {/* FULL-SIZE IMAGE ZOOM MODAL */}
       {viewZoomModal && formData.bloodSmearFile?.url && (
-        <div 
+        <div
           className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setViewZoomModal(false)}
         >
-          <div 
+          <div
             className="relative max-w-4xl max-h-[90vh] bg-slate-900 rounded-2xl overflow-hidden border border-slate-700 shadow-2xl flex flex-col"
             onClick={e => e.stopPropagation()}
           >
@@ -793,7 +801,7 @@ export const AddPatientWizard = () => {
                 <h3 className="font-semibold text-sm">{formData.bloodSmearFile.name}</h3>
                 <span className="text-xs text-slate-400 font-mono">({formData.bloodSmearFile.size})</span>
               </div>
-              <button 
+              <button
                 className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
                 onClick={() => setViewZoomModal(false)}
               >
@@ -801,9 +809,9 @@ export const AddPatientWizard = () => {
               </button>
             </div>
             <div className="p-4 flex items-center justify-center overflow-auto max-h-[75vh]">
-              <img 
-                src={formData.bloodSmearFile.url} 
-                alt="Full Microscope Inspection" 
+              <img
+                src={formData.bloodSmearFile.url}
+                alt="Full Microscope Inspection"
                 className="max-h-[70vh] w-auto rounded-lg object-contain shadow-lg"
               />
             </div>

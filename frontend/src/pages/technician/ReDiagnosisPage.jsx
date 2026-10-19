@@ -6,14 +6,14 @@ import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { PdfViewerModal } from '../../components/common/PdfViewerModal';
 import { CbcChart } from '../../components/charts/CbcChart';
-import { 
-  AlertTriangle, 
-  RotateCcw, 
-  Eye, 
-  RefreshCw, 
-  CheckCircle2, 
-  ArrowRight, 
-  Microscope, 
+import {
+  AlertTriangle,
+  RotateCcw,
+  Eye,
+  RefreshCw,
+  CheckCircle2,
+  ArrowRight,
+  Microscope,
   FileText,
   Sparkles
 } from 'lucide-react';
@@ -85,10 +85,10 @@ export const ReDiagnosisPage = () => {
         </div>
       </div>
 
-      {/* Doctor Feedback Summary Box (Step 20 requirement) */}
-      <Card 
-        title="Doctor Feedback & Re-diagnosis Remarks" 
-        subtitle="Review clinician comments prior to performing re-diagnosis"
+      {/* Verification Feedback Summary Box */}
+      <Card
+        title="Laboratory Verification & Re-diagnosis Remarks"
+        subtitle="Review specialist remarks prior to performing sample re-analysis"
         className="border-2 border-amber-300 bg-amber-50/40"
       >
         <div className="space-y-3 text-xs">
@@ -96,7 +96,7 @@ export const ReDiagnosisPage = () => {
             <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
             <div>
               <p className="font-bold text-slate-900">
-                Doctor: {patient.doctorReview?.doctorName || 'Dr. Amara Fernando'}
+                Verified by: {patient.doctorReview?.doctorName || 'Senior Lab Specialist'}
               </p>
               <p className="mt-1 text-slate-800 leading-relaxed font-medium">
                 "{patient.doctorReview?.comments || 'Smear quality has slight stain precipitate artifacts near neutrophil clusters. Please re-stain Giemsa slide and re-upload smear for confirmation.'}"
@@ -130,16 +130,16 @@ export const ReDiagnosisPage = () => {
 
       {/* Media Inspection & Replacement Panel */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
+
         {/* Blood Smear Re-upload Card */}
         <Card title="Microscope Blood Smear Image" subtitle="Review or replace Giemsa blood smear slide image">
           <div className="space-y-4 text-xs">
             <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <img 
-                  src={customSmearImage || patient.bloodSmearImage} 
-                  alt="Smear" 
-                  className="w-14 h-14 rounded-lg object-cover border-2 border-teal-500/50" 
+                <img
+                  src={customSmearImage || patient.bloodSmearImage}
+                  alt="Smear"
+                  className="w-14 h-14 rounded-lg object-cover border-2 border-teal-500/50"
                 />
                 <div>
                   <h5 className="font-semibold text-white">Giemsa Smear Slide Image</h5>
