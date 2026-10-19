@@ -14,29 +14,48 @@ export const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleSubmit = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
     setError('');
     setLoading(true);
 
-    setTimeout(() => {
-      const res = login(email, password);
+    try {
+      const res = await login(email, password);
       setLoading(false);
 
-      if (res.success) {
-        if (res.user.role === 'admin') navigate('/admin');
-        else if (res.user.role === 'technician') navigate('/technician');
-        else navigate('/doctor');
+      if (res && res.success) {
+        const userRole = res.user?.role || 'technician';
+        if (userRole === 'admin') {
+          navigate('/admin');
+        } else {
+          navigate('/technician');
+        }
       } else {
-        setError(res.message);
+        setError(res?.message || 'Invalid credentials. Please try again.');
       }
-    }, 600);
+    } catch (err) {
+      setLoading(false);
+      setError(err?.message || 'Authentication error. Please check your network or try again.');
+    }
   };
 
-  const handleQuickDemoUser = (demoEmail, role) => {
+  const handleQuickDemoUser = async (demoEmail, role) => {
     setEmail(demoEmail);
     setPassword('demo123');
     switchRole(role);
+    setError('');
+    setLoading(true);
+
+    try {
+      const res = await login(demoEmail, 'demo123');
+      setLoading(false);
+      if (res && res.success) {
+        if (role === 'admin') navigate('/admin');
+        else navigate('/technician');
+      }
+    } catch (err) {
+      setLoading(false);
+    }
   };
 
   return (
@@ -175,44 +194,31 @@ export const Login = () => {
             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2.5">
               Select Demo Persona (Quick Test Login):
             </p>
-            <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="grid grid-cols-2 gap-3 text-xs">
               <button
                 type="button"
                 onClick={() => handleQuickDemoUser('admin@vetai.demo', 'admin')}
-                className={`p-2 rounded-lg border text-left transition-all ${
+                className={`p-2.5 rounded-lg border text-left transition-all ${
                   email === 'admin@vetai.demo'
                     ? 'bg-teal-950/80 border-teal-500 text-white font-semibold'
                     : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800'
                 }`}
               >
-                <div className="font-bold">Admin</div>
+                <div className="font-bold">Administrator</div>
                 <div className="text-[10px] text-slate-400 truncate">admin@vetai.demo</div>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleQuickDemoUser('technician@vetai.demo', 'technician')}
-                className={`p-2 rounded-lg border text-left transition-all ${
+                className={`p-2.5 rounded-lg border text-left transition-all ${
                   email === 'technician@vetai.demo'
                     ? 'bg-teal-950/80 border-teal-500 text-white font-semibold'
                     : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800'
                 }`}
               >
-                <div className="font-bold">Lab Tech</div>
+                <div className="font-bold">Lab Technician</div>
                 <div className="text-[10px] text-slate-400 truncate">technician@vetai.demo</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickDemoUser('doctor@vetai.demo', 'doctor')}
-                className={`p-2 rounded-lg border text-left transition-all ${
-                  email === 'doctor@vetai.demo'
-                    ? 'bg-teal-950/80 border-teal-500 text-white font-semibold'
-                    : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800'
-                }`}
-              >
-                <div className="font-bold">Doctor</div>
-                <div className="text-[10px] text-slate-400 truncate">doctor@vetai.demo</div>
               </button>
             </div>
           </div>
