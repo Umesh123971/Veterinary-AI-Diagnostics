@@ -15,7 +15,6 @@ export const DashboardLayout = () => {
     if (path.includes('/patients/new')) return 'Register New Canine Patient';
     if (path.includes('/patients/')) return 'Patient Clinical Profile';
     if (path.includes('/patients')) return 'Canine Patient Management';
-    if (path.includes('/diagnosis/workflow')) return 'AI Multi-Modal Diagnostic Workflow';
     if (path.includes('/results/')) return 'Detailed Diagnostic Result';
     if (path.includes('/results')) return 'Diagnostic Case Repository';
     if (path.includes('/reports/')) return 'Veterinary Diagnostic Report Preview';

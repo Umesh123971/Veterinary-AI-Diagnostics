@@ -79,13 +79,6 @@ export const TopNav = ({ title = 'Dashboard' }) => {
                 <span>Lab Technician</span>
                 {currentUser?.role === 'technician' && <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />}
               </button>
-              <button
-                onClick={() => { switchRole('doctor'); setShowRoleMenu(false); }}
-                className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between text-slate-800 font-medium"
-              >
-                <span>Doctor / Clinician</span>
-                {currentUser?.role === 'doctor' && <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />}
-              </button>
             </div>
           )}
         </div>
