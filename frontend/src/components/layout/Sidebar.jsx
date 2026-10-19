@@ -1,15 +1,15 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
-import { 
-  Activity, 
-  Users, 
-  FolderKanban, 
-  Stethoscope, 
-  FileCheck2, 
-  FileText, 
-  User, 
-  Settings, 
+import {
+  Activity,
+  Users,
+  FolderKanban,
+  Stethoscope,
+  FileCheck2,
+  FileText,
+  User,
+  Settings,
   LogOut,
   Microscope,
   Shield
@@ -27,8 +27,7 @@ export const Sidebar = () => {
   const getDashboardPath = () => {
     if (!currentUser) return '/login';
     if (currentUser.role === 'admin') return '/admin';
-    if (currentUser.role === 'technician') return '/technician';
-    return '/doctor';
+    return '/technician';
   };
 
   const navItems = [
@@ -36,31 +35,25 @@ export const Sidebar = () => {
       name: 'Dashboard',
       path: getDashboardPath(),
       icon: Activity,
-      roles: ['admin', 'technician', 'doctor']
+      roles: ['admin', 'technician']
     },
     {
       name: 'Patients',
       path: '/patients',
       icon: FolderKanban,
-      roles: ['admin', 'technician', 'doctor']
-    },
-    {
-      name: 'Diagnosis',
-      path: '/diagnosis/workflow',
-      icon: Stethoscope,
-      roles: ['admin', 'technician', 'doctor']
+      roles: ['admin', 'technician']
     },
     {
       name: 'Diagnostic Results',
       path: '/results',
       icon: FileCheck2,
-      roles: ['admin', 'technician', 'doctor']
+      roles: ['admin', 'technician']
     },
     {
       name: 'Reports',
       path: '/reports',
       icon: FileText,
-      roles: ['admin', 'technician', 'doctor']
+      roles: ['admin', 'technician']
     },
     {
       name: 'Users',
@@ -72,7 +65,7 @@ export const Sidebar = () => {
       name: 'Profile',
       path: '/profile',
       icon: User,
-      roles: ['admin', 'technician', 'doctor']
+      roles: ['admin', 'technician']
     },
   ];
 
@@ -109,10 +102,9 @@ export const Sidebar = () => {
               key={item.name}
               to={item.path}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
-                  isActive
-                    ? 'bg-teal-600 text-white shadow-md shadow-teal-900/40 font-semibold'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                `flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${isActive
+                  ? 'bg-teal-600 text-white shadow-md shadow-teal-900/40 font-semibold'
+                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
                 }`
               }
             >
