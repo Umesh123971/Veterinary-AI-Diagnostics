@@ -3,6 +3,7 @@ from django.db import models
 STATUS_CHOICES = (
     ('Awaiting Diagnosis', 'Awaiting Diagnosis'),
     ('Doctor Review', 'Doctor Review'),
+    ('Awaiting Verification', 'Awaiting Verification'),
     ('Diagnosis Complete', 'Diagnosis Complete'),
     ('Re-diagnosis Requested', 'Re-diagnosis Requested'),
 )

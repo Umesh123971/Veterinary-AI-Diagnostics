@@ -41,12 +41,12 @@ def seed_database():
             'avatar': 'https://images.unsplash.com/photo-1594824813566-78a99477d94b?w=150&auto=format&fit=crop&q=80'
         },
         {
-            'username': 'doctor@vetai.demo',
-            'email': 'doctor@vetai.demo',
+            'username': 'senior.tech@vetai.demo',
+            'email': 'senior.tech@vetai.demo',
             'custom_id': 'USR-003',
-            'name': 'Dr. Marcus Sterling, DVM',
-            'role': 'doctor',
-            'role_label': 'Doctor / Clinician',
+            'name': 'Marcus Sterling, MT',
+            'role': 'technician',
+            'role_label': 'Lab Technician',
             'status': 'Active',
             'phone': '+1 (555) 456-7890',
             'organization': 'Companion Animal Clinical Diagnostics',
@@ -56,9 +56,9 @@ def seed_database():
             'username': 'amara.f@vetai.demo',
             'email': 'amara.f@vetai.demo',
             'custom_id': 'USR-004',
-            'name': 'Dr. Amara Fernando',
-            'role': 'doctor',
-            'role_label': 'Doctor / Clinician',
+            'name': 'Amara Fernando, RVT',
+            'role': 'technician',
+            'role_label': 'Lab Technician',
             'status': 'Active',
             'phone': '+1 (555) 567-8901',
             'organization': 'Faculty of Veterinary Medicine & Animal Science',
@@ -206,7 +206,7 @@ def seed_database():
             'timeline': [
                 {'date': '2026-08-29 10:00', 'title': 'Patient Registered & Sample Uploaded', 'actor': 'Sarah Jenkins, RVT'},
                 {'date': '2026-08-29 10:15', 'title': 'AI Diagnosis Executed', 'actor': 'VetAI Model v2.4'},
-                {'date': '2026-08-29 10:16', 'title': 'Submitted to Doctor Review Queue', 'actor': 'System'}
+                {'date': '2026-08-29 10:16', 'title': 'Submitted to Laboratory Verification Queue', 'actor': 'System'}
             ]
         }
     ]
