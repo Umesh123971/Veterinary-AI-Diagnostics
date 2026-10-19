@@ -96,8 +96,10 @@ export const patientsApi = {
     }
     return data;
   },
-  submitDoctorReview: (id, action, comments, doctorName) => 
-    fetchApi(`/patients/${id}/doctor-review/`, { method: 'POST', body: { action, comments, doctorName } }),
+  submitDoctorReview: (id, action, comments, reviewerName) => 
+    fetchApi(`/patients/${id}/technician-review/`, { method: 'POST', body: { action, comments, reviewerName, doctorName: reviewerName } }),
+  submitTechnicianReview: (id, action, comments, reviewerName) => 
+    fetchApi(`/patients/${id}/technician-review/`, { method: 'POST', body: { action, comments, reviewerName, doctorName: reviewerName } }),
   updateCbc: (id, cbcData) => fetchApi(`/patients/${id}/update-cbc/`, { method: 'PATCH', body: { cbcData } }),
 };
 
