@@ -16,6 +16,8 @@ export const Badge = ({ children, variant = 'neutral', size = 'md', className = 
     'Processing': 'bg-amber-50 text-amber-700 border-amber-200',
     'Diagnosis Complete': 'bg-emerald-50 text-emerald-700 border-emerald-200',
     'Doctor Review': 'bg-blue-50 text-blue-700 border-blue-200',
+    'Awaiting Verification': 'bg-blue-50 text-blue-700 border-blue-200',
+    'Pending Sign-Off': 'bg-blue-50 text-blue-700 border-blue-200',
     'Re-diagnosis Requested': 'bg-rose-50 text-rose-700 border-rose-200',
     
     // CBC Status
