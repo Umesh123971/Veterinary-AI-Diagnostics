@@ -18,7 +18,12 @@ export const TechnicianDashboard = () => {
 
   const filteredPatients = statusFilter === 'All'
     ? patients
-    : patients.filter(p => p.status === statusFilter);
+    : patients.filter(p => {
+      if (statusFilter === 'Under Review') {
+        return p.status === 'Doctor Review' || p.status === 'Awaiting Verification' || p.status === 'Pending Sign-Off';
+      }
+      return p.status === statusFilter;
+    });
 
   return (
     <div className="space-y-6">
@@ -89,7 +94,7 @@ export const TechnicianDashboard = () => {
             <div>
               <p className="text-xs font-semibold text-slate-500">Re-diagnosis Requests</p>
               <h3 className="text-2xl font-extrabold text-rose-600 mt-1">{rediagnosisRequests}</h3>
-              <p className="text-[11px] text-rose-700 font-semibold mt-1">Doctor Feedback Returned</p>
+              <p className="text-[11px] text-rose-700 font-semibold mt-1">Verification Feedback Returned</p>
             </div>
             <div className="p-3 bg-rose-50 text-rose-600 rounded-xl border border-rose-100">
               <AlertTriangle className="w-6 h-6" />
@@ -101,18 +106,17 @@ export const TechnicianDashboard = () => {
       {/* Patient Table with Status Filter */}
       <Card
         title="Recent Patient Cases"
-        subtitle="Manage canine sample pipeline and AI multi-modal diagnostic triggers"
+        subtitle="Manage canine sample pipeline, AI multi-modal diagnostics, and verification sign-offs"
         action={
           <div className="flex gap-2">
-            {['All', 'Awaiting Diagnosis', 'Doctor Review', 'Re-diagnosis Requested', 'Diagnosis Complete'].map((st) => (
+            {['All', 'Awaiting Diagnosis', 'Under Review', 'Re-diagnosis Requested', 'Diagnosis Complete'].map((st) => (
               <button
                 key={st}
                 onClick={() => setStatusFilter(st)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                  statusFilter === st
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${statusFilter === st
                     ? 'bg-slate-900 text-white'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
+                  }`}
               >
                 {st}
               </button>
@@ -144,7 +148,7 @@ export const TechnicianDashboard = () => {
                   <td className="py-3 px-4 text-slate-600">{patient.breed}</td>
                   <td className="py-3 px-4 text-slate-500 font-mono">{patient.sampleDate}</td>
                   <td className="py-3 px-4">
-                    <Badge variant={patient.status}>{patient.status}</Badge>
+                    <Badge variant={patient.status}>{patient.status === 'Doctor Review' ? 'Awaiting Verification' : patient.status}</Badge>
                   </td>
                   <td className="py-3 px-4 text-right">
                     {patient.status === 'Re-diagnosis Requested' ? (
@@ -155,6 +159,16 @@ export const TechnicianDashboard = () => {
                         onClick={() => navigate(`/technician/rediagnosis/${patient.id}`)}
                       >
                         Re-Diagnose Case
+                      </Button>
+                    ) : (patient.status === 'Doctor Review' || patient.status === 'Awaiting Verification') ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        icon={CheckCircle2}
+                        className="bg-teal-600 hover:bg-teal-700"
+                        onClick={() => navigate(`/technician/review/${patient.id}`)}
+                      >
+                        Verify & Sign Off
                       </Button>
                     ) : (
                       <Button
