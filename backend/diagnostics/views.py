@@ -259,7 +259,7 @@ class PatientViewSet(viewsets.ModelViewSet):
         })
         current_timeline.append({
             'date': timestamp,
-            'title': 'Submitted to Doctor Review Queue',
+            'title': 'Submitted to Laboratory Verification Queue',
             'actor': 'System'
         })
         patient.timeline = current_timeline
@@ -268,12 +268,16 @@ class PatientViewSet(viewsets.ModelViewSet):
         return Response({'success': True, 'patient': PatientSerializer(patient).data, 'ai_result': ai_res}, status=status.HTTP_200_OK)
 
 
+    @action(detail=True, methods=['post'], url_path='technician-review')
+    def submit_technician_review(self, request, pk=None):
+        return self.submit_doctor_review(request, pk)
+
     @action(detail=True, methods=['post'], url_path='doctor-review')
     def submit_doctor_review(self, request, pk=None):
         patient = self.get_object()
         action_type = request.data.get('action') # 'accept' or 'reject'
         comments = request.data.get('comments', '')
-        doctor_name = request.data.get('doctorName') or 'Dr. Marcus Sterling, DVM'
+        reviewer_name = request.data.get('reviewerName') or request.data.get('technicianName') or request.data.get('doctorName') or 'Lab Technician'
 
         is_accept = action_type == 'accept'
         new_status = 'Diagnosis Complete' if is_accept else 'Re-diagnosis Requested'
@@ -282,7 +286,7 @@ class PatientViewSet(viewsets.ModelViewSet):
         patient.status = new_status
         patient.doctor_review = {
             'status': review_status,
-            'doctorName': doctor_name,
+            'doctorName': reviewer_name,
             'reviewDate': now().strftime('%Y-%m-%d %H:%M'),
             'comments': comments or ('Accepted AI-assisted diagnosis findings.' if is_accept else 'Requested laboratory re-analysis.')
         }
@@ -290,8 +294,8 @@ class PatientViewSet(viewsets.ModelViewSet):
         current_timeline = list(patient.timeline or [])
         current_timeline.append({
             'date': now().strftime('%Y-%m-%d %H:%M'),
-            'title': 'Doctor Review Approved' if is_accept else 'Re-diagnosis Requested by Doctor',
-            'actor': doctor_name
+            'title': 'Laboratory Verification Approved' if is_accept else 'Re-diagnosis Requested by Laboratory Specialist',
+            'actor': reviewer_name
         })
         patient.timeline = current_timeline
         patient.save()
