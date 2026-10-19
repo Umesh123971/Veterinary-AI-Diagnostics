@@ -156,17 +156,17 @@ export const ViewReportPage = () => {
           </div>
         </div>
 
-        {/* 4. Doctor Comments */}
+        {/* 4. Laboratory Verification Remarks */}
         <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1 text-xs">
-          <h4 className="font-bold text-slate-900">Doctor Clinical Interpretation & Sign-Off Remarks:</h4>
-          <p className="text-slate-700 italic">"{patient.doctorReview?.comments || 'Confirmed findings. Recommended treatment initiated.'}"</p>
+          <h4 className="font-bold text-slate-900">Laboratory Verification & Sign-Off Remarks:</h4>
+          <p className="text-slate-700 italic">"{patient.doctorReview?.comments || 'Confirmed multi-modal findings. Automated hematology indices and microscopic smear validated.'}"</p>
           <div className="pt-2 text-[10px] text-slate-500 font-mono flex justify-between">
-            <span>Verified by: {patient.doctorReview?.doctorName || 'Dr. Marcus Sterling, DVM'}</span>
+            <span>Verified by: {patient.doctorReview?.doctorName || 'Marcus Sterling, MT'}</span>
             <span>Date: {patient.doctorReview?.reviewDate || patient.sampleDate}</span>
           </div>
         </div>
 
-        {/* 5. Mandatory Disclaimer (Step 21 requirement) */}
+        {/* 5. Mandatory Disclaimer */}
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-950 text-xs flex items-start gap-3">
           <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div>
@@ -185,9 +185,9 @@ export const ViewReportPage = () => {
           </div>
           <div className="text-center">
             <div className="w-40 border-b border-slate-400 pb-1 mb-1 font-serif italic text-slate-700 text-sm">
-              {patient.doctorReview?.doctorName || 'Dr. Marcus Sterling'}
+              {patient.doctorReview?.doctorName || 'Marcus Sterling, MT'}
             </div>
-            <span className="text-[10px] text-slate-500 font-semibold uppercase">Licensed Veterinary Practitioner</span>
+            <span className="text-[10px] text-slate-500 font-semibold uppercase">Authorized Laboratory Specialist</span>
           </div>
         </div>
 

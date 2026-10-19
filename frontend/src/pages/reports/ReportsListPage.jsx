@@ -35,7 +35,7 @@ export const ReportsListPage = () => {
                   <td className="py-3 px-4 font-bold text-slate-900">{patient.dogName} ({patient.id})</td>
                   <td className="py-3 px-4"><Badge variant="Diagnosis Complete">{patient.primaryPrediction}</Badge></td>
                   <td className="py-3 px-4 text-slate-500 font-mono">{patient.sampleDate}</td>
-                  <td className="py-3 px-4 text-slate-700">{patient.doctorReview?.doctorName || 'Dr. Marcus Sterling'}</td>
+                  <td className="py-3 px-4 text-slate-700">{patient.doctorReview?.doctorName || 'Marcus Sterling, MT'}</td>
                   <td className="py-3 px-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <Button variant="outline" size="sm" icon={Eye} onClick={() => navigate(`/reports/${patient.id}`)}>
