@@ -5,8 +5,14 @@ import { authApi, usersApi, patientsApi, notificationsApi } from '../services/ap
 const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
-  // Current user state - defaults to Admin for demo convenience
-  const [currentUser, setCurrentUser] = useState(MOCK_USERS[0]); 
+  // Current user state - stored with localStorage persistence
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vetai_user');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return MOCK_USERS[0];
+  }); 
   const [users, setUsers] = useState(MOCK_USERS);
   const [patients, setPatients] = useState(MOCK_PATIENTS);
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
@@ -26,7 +32,10 @@ export const AppProvider = ({ children }) => {
         if (isMounted) {
           if (fetchedUsers && Array.isArray(fetchedUsers) && fetchedUsers.length > 0) {
             setUsers(fetchedUsers);
-            setCurrentUser(fetchedUsers[0]);
+            const saved = localStorage.getItem('vetai_user');
+            if (!saved) {
+              setCurrentUser(fetchedUsers[0]);
+            }
             setIsBackendConnected(true);
           }
           if (fetchedPatients && Array.isArray(fetchedPatients) && fetchedPatients.length > 0) {
@@ -47,31 +56,41 @@ export const AppProvider = ({ children }) => {
 
   // Authentication
   const login = async (email, password) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+
     try {
-      const res = await authApi.login(email, password);
-      if (res.success && res.user) {
+      const res = await authApi.login(cleanEmail, password);
+      if (res && res.success && res.user) {
         setCurrentUser(res.user);
+        try { localStorage.setItem('vetai_user', JSON.stringify(res.user)); } catch (e) {}
         return { success: true, user: res.user };
       }
     } catch (err) {
-      // Fallback local auth
-      const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-      if (foundUser) {
-        setCurrentUser(foundUser);
-        return { success: true, user: foundUser };
-      }
+      console.warn('API login failed or offline, checking local accounts:', err.message);
     }
-    return { success: false, message: 'Invalid credentials. Try admin@vetai.demo, technician@vetai.demo, or doctor@vetai.demo' };
+
+    // Fallback local auth (supports both fetched and mock accounts)
+    const allUsers = [...users, ...MOCK_USERS];
+    const foundUser = allUsers.find(u => u.email.toLowerCase() === cleanEmail);
+    if (foundUser) {
+      setCurrentUser(foundUser);
+      try { localStorage.setItem('vetai_user', JSON.stringify(foundUser)); } catch (e) {}
+      return { success: true, user: foundUser };
+    }
+
+    return { success: false, message: 'Invalid credentials. Try admin@vetai.demo or technician@vetai.demo' };
   };
 
   const logout = () => {
+    try { localStorage.removeItem('vetai_user'); } catch (e) {}
     authApi.logout().catch(() => {});
     setCurrentUser(null);
   };
 
   const switchRole = (role) => {
-    const targetUser = users.find(u => u.role === role) || users[0];
+    const targetUser = users.find(u => u.role === role) || MOCK_USERS.find(u => u.role === role) || users[0];
     setCurrentUser(targetUser);
+    try { localStorage.setItem('vetai_user', JSON.stringify(targetUser)); } catch (e) {}
   };
 
   // User Management Actions
@@ -240,7 +259,7 @@ export const AppProvider = ({ children }) => {
           timeline: [
             ...p.timeline,
             { date: new Date().toLocaleString(), title: 'AI Diagnosis & Multi-Modal Fusion Executed', actor: 'VetAI AI Engine v2.4' },
-            { date: new Date().toLocaleString(), title: 'Submitted to Doctor Review Queue', actor: 'System' }
+            { date: new Date().toLocaleString(), title: 'Submitted to Laboratory Verification Queue', actor: 'System' }
           ]
         };
       }
@@ -249,7 +268,7 @@ export const AppProvider = ({ children }) => {
 
     addNotification({
       title: 'AI Diagnosis Complete',
-      message: `Multi-modal fusion completed for patient ${patientId}. Sent to Doctor Review queue.`,
+      message: `Multi-modal fusion completed for patient ${patientId}. Ready for laboratory verification sign-off.`,
       type: 'success'
     });
 
@@ -265,7 +284,7 @@ export const AppProvider = ({ children }) => {
 
   const submitDoctorReview = async (patientId, action, comments) => {
     const isAccept = action === 'accept';
-    const doctorName = currentUser?.name || 'Dr. Marcus Sterling';
+    const reviewerName = currentUser?.name || 'Lab Specialist';
 
     setPatients(prev => prev.map(p => {
       if (p.id === patientId) {
@@ -275,7 +294,7 @@ export const AppProvider = ({ children }) => {
           status: newStatus,
           doctorReview: {
             status: isAccept ? 'Accepted' : 'Re-diagnosis Requested',
-            doctorName: doctorName,
+            doctorName: reviewerName,
             reviewDate: new Date().toLocaleString(),
             comments: comments || (isAccept ? 'Accepted AI-assisted diagnosis findings.' : 'Requested laboratory re-analysis.')
           },
@@ -283,8 +302,8 @@ export const AppProvider = ({ children }) => {
             ...p.timeline,
             { 
               date: new Date().toLocaleString(), 
-              title: isAccept ? 'Doctor Review Approved' : 'Re-diagnosis Requested by Doctor', 
-              actor: doctorName 
+              title: isAccept ? 'Laboratory Verification Approved' : 'Re-diagnosis Requested by Laboratory Specialist', 
+              actor: reviewerName 
             }
           ]
         };
@@ -293,18 +312,18 @@ export const AppProvider = ({ children }) => {
     }));
 
     addNotification({
-      title: action === 'accept' ? 'Diagnosis Approved' : 'Re-diagnosis Requested',
-      message: `Doctor review submitted for case ${patientId}. Status updated to ${action === 'accept' ? 'Complete' : 'Re-diagnosis Requested'}.`,
+      title: action === 'accept' ? 'Laboratory Sign-Off Approved' : 'Re-diagnosis Requested',
+      message: `Laboratory verification submitted for case ${patientId}. Status updated to ${action === 'accept' ? 'Diagnosis Complete' : 'Re-diagnosis Requested'}.`,
       type: action === 'accept' ? 'success' : 'warning'
     });
 
     try {
-      const res = await patientsApi.submitDoctorReview(patientId, action, comments, doctorName);
+      const res = await patientsApi.submitDoctorReview(patientId, action, comments, reviewerName);
       if (res && res.patient) {
         setPatients(prev => prev.map(p => p.id === patientId ? res.patient : p));
       }
     } catch (err) {
-      console.warn('Doctor review saved locally.');
+      console.warn('Verification review saved locally.');
     }
   };
 
@@ -361,6 +380,7 @@ export const AppProvider = ({ children }) => {
       updatePatientCbc,
       runAiDiagnosis,
       submitDoctorReview,
+      submitTechnicianReview: submitDoctorReview,
       markNotificationRead,
       clearAllNotifications,
       addNotification
