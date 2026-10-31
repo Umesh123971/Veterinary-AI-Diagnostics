@@ -37,7 +37,7 @@ class PatientSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         res = super().to_representation(instance)
         # Always format output to match frontend structure exactly
-        return {
+        result = {
             'id': instance.custom_id,
             'dogName': instance.dog_name,
             'ownerName': instance.owner_name,
@@ -52,6 +52,11 @@ class PatientSerializer(serializers.ModelSerializer):
             'bloodSmearImage': instance.blood_smear_image,
             'cbcReportPdf': instance.cbc_report_pdf,
             'cbcData': instance.cbc_data,
+            'cbcExtraction': instance.cbc_extraction,
+            'cbcAnalysis': instance.cbc_analysis,
+            'imageAnalysis': instance.image_analysis,
+            'cbcConfirmed': instance.cbc_confirmed,
+            'cbcRevision': str(instance.cbc_revision),
             'primaryPrediction': instance.primary_prediction,
             'overallConfidence': instance.overall_confidence,
             'estimatedParasitemia': instance.estimated_parasitemia,
@@ -64,3 +69,17 @@ class PatientSerializer(serializers.ModelSerializer):
             'createdAt': instance.created_at.strftime('%Y-%m-%d %H:%M:%S') if instance.created_at else '',
             'updatedAt': instance.updated_at.strftime('%Y-%m-%d %H:%M:%S') if instance.updated_at else ''
         }
+
+        request=self.context.get('request')
+        def asset(value,kind):
+            if value and value.startswith('/media/'):
+                url=f'/api/patients/{instance.custom_id}/files/{kind}/'
+                return request.build_absolute_uri(url) if request else url
+            return value
+        result['hasCbcReport']=bool(instance.cbc_report_pdf.startswith('/media/'))
+        result['hasBloodSmear']=bool(instance.blood_smear_image.startswith('/media/'))
+        result['bloodSmearImage']=asset(result['bloodSmearImage'],'image')
+        result['cbcReportPdf']=asset(result['cbcReportPdf'],'cbc')
+        if result['imageAnalysis'].get('annotatedImage'):
+            result['imageAnalysis']={**result['imageAnalysis'],'annotatedImage':asset(result['imageAnalysis']['annotatedImage'],'annotated')}
+        return result

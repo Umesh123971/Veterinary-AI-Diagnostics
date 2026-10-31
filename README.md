@@ -1,3 +1,13 @@
+## Integrated Ehrlichiosis workflow
+
+The patient workflow now supports CBC PDF extraction, editable technician review,
+rule-based CBC analysis, ResNet50 scoring with YOLO evidence, and 30% CBC / 70%
+image fusion. Image failure produces a labelled CBC-only result. Only the
+Ehrlichiosis model is currently integrated.
+
+See [integration setup and code guide](backend/components/canine_ehrlichiosis/INTEGRATION.md)
+for startup instructions, scoring rules, limitations and tests.
+
 # Backend run -> .\.venv\Scripts\Activate.ps1
 # Backend run -> python manage.py runserver 8000
 

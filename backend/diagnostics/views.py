@@ -1,314 +1,221 @@
-import os
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+import logging
+import uuid
+from django.db import transaction
+from django.http import FileResponse
+from django.shortcuts import get_object_or_404
 from django.utils.timezone import now
+from rest_framework import status,viewsets
+from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
 from .models import Patient
 from .serializers import PatientSerializer
-from .babesia_detector import diagnose_blood_smear
+from .integration import save_image,save_pdf,local_media_path,run_image_analysis
+from components.canine_ehrlichiosis.cbc import extract_pdf,parse_text,parameters,normalize_values,analyze_cbc,fuse_analyses
+
+log=logging.getLogger(__name__)
+DISEASES={"ehrlichiosis":"Canine Ehrlichiosis","babesiosis":"Canine Babesiosis","dirofilariasis":"Canine Dirofilariasis","hepatozoonosis":"Canine Hepatozoonosis"}
+
+
+def clear_results(patient):
+    patient.cbc_confirmed=False
+    patient.cbc_analysis={}; patient.image_analysis={}; patient.fusion_details={}
+    patient.disease_predictions={}; patient.image_annotations={}
+    patient.primary_prediction="Not analysed"; patient.overall_confidence=0.
+    patient.status="Awaiting Diagnosis"
+    patient.doctor_review={"status":"Pending","comments":""}
+    patient.cbc_revision=uuid.uuid4()
+
 
 class PatientViewSet(viewsets.ModelViewSet):
-    queryset = Patient.objects.all().order_by('-id')
-    serializer_class = PatientSerializer
-    permission_classes = [AllowAny]
+    queryset=Patient.objects.all().order_by('-id')
+    serializer_class=PatientSerializer
+    permission_classes=[AllowAny]
+    http_method_names=['get','post','patch','put','head','options']
 
     def get_object(self):
-        lookup = self.kwargs.get('pk')
-        patient = Patient.objects.filter(custom_id=lookup).first()
-        if patient:
-            return patient
-        return super().get_object()
+        key=self.kwargs.get('pk','')
+        return get_object_or_404(Patient,custom_id=key) if key.startswith('PAT-') else super().get_object()
 
-    @action(detail=False, methods=['post'], url_path='analyze-image')
-    def analyze_image(self, request):
-        """
-        Direct AI Blood Smear Analysis & Microscopy Validation
-        POST /api/patients/analyze-image/
-        Accepts: Form-data with 'image' file OR JSON body with base64 'image'
-        """
-        image_input = request.FILES.get('image') or request.FILES.get('file')
-        if not image_input:
-            image_input = request.data.get('image') or request.data.get('bloodSmearImage')
+    def result(self,patient,**extra):
+        return Response(dict(success=True,patient=self.get_serializer(patient).data,**extra))
 
-        if not image_input:
-            return Response(
-                {'is_valid': False, 'error': "No image file provided. Please send a file or base64 string under key 'image'."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+    def create(self,request,*args,**kwargs):
+        data=request.data
+        if not str(data.get('dogName','')).strip() or not str(data.get('ownerName','')).strip():
+            return Response({'error':'Patient name and owner name are required'},status=400)
         try:
-            result = diagnose_blood_smear(image_input)
-            return Response(result, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({
-                'is_valid': False,
-                'error': f'Model inference failed: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            report=save_pdf(request.FILES['report']) if 'report' in request.FILES else ''
+            image=save_image(request.FILES['image']) if 'image' in request.FILES else ''
+        except ValueError as exc:
+            return Response({'error':str(exc)},status=400)
+        fields={}
+        for external,internal in [('dogName','dog_name'),('ownerName','owner_name'),('age','age'),('sex','sex'),('breed','breed'),
+                                  ('weight','weight'),('contactNumber','contact_number'),('sampleDate','sample_date'),('clinicalNotes','clinical_notes')]:
+            value=str(data.get(external,'')).strip()
+            if len(value)>(Patient._meta.get_field(internal).max_length or 10000):
+                return Response({'error':f'{external} is too long'},status=400)
+            fields[internal]=value
+        patient=Patient.objects.create(custom_id='PAT-'+now().strftime('%Y%m%d')+'-'+uuid.uuid4().hex[:10].upper(),
+                                       cbc_report_pdf=report,blood_smear_image=image,**fields)
+        patient.timeline=[dict(date=now().isoformat(),title='Patient record and uploaded files saved',actor='Technician')]
+        patient.save(update_fields=['timeline'])
+        return Response(self.get_serializer(patient).data,status=201)
 
-    def create(self, request, *args, **kwargs):
-        data = request.data
-        count = Patient.objects.count() + 1
-        custom_id = f"PAT-2026-{count:03d}"
+    def update(self,request,*args,**kwargs):
+        return Response({'error':'Use the CBC review and replace-files actions to preserve diagnostic provenance'},status=405)
 
-        dog_name = data.get('dogName') or data.get('dog_name') or 'Unnamed Dog'
-        owner_name = data.get('ownerName') or data.get('owner_name') or 'Unknown Owner'
-        age = data.get('age', '3 years')
-        sex = data.get('sex', 'Male')
-        breed = data.get('breed', 'Labrador Retriever')
-        weight = data.get('weight', '25.0 kg')
-        contact_number = data.get('contactNumber') or data.get('contact_number') or '+94 77 000 0000'
-        sample_date = data.get('sampleDate') or data.get('sample_date') or now().strftime('%Y-%m-%d')
-        clinical_notes = data.get('clinicalNotes') or data.get('clinical_notes') or ''
-        status_val = data.get('status', 'Awaiting Diagnosis')
-
-        blood_smear_image = data.get('bloodSmearImage') or data.get('blood_smear_image') or 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=800&auto=format&fit=crop&q=80'
-        cbc_report_pdf = data.get('cbcReportPdf') or data.get('cbc_report_pdf') or f"{dog_name}_CBC_Report.pdf"
-
-        # Default extracted CBC structure
-        default_cbc = {
-            'rbc': {'value': 4.5, 'status': 'Low'},
-            'pcv': {'value': 30, 'status': 'Low'},
-            'hb': {'value': 10.0, 'status': 'Low'},
-            'wbc': {'value': 13.0, 'status': 'Normal'},
-            'platelets': {'value': 170, 'status': 'Low'},
-            'neutrophils': {'value': 70, 'status': 'Normal'},
-            'lymphocytes': {'value': 18, 'status': 'Normal'},
-            'monocytes': {'value': 7, 'status': 'Normal'},
-            'eosinophils': {'value': 4, 'status': 'Normal'},
-            'basophils': {'value': 1, 'status': 'Normal'},
-        }
-        cbc_data = data.get('cbcData') or data.get('cbc_data') or default_cbc
-
-        # Default multi-disease predictions
-        default_disease_predictions = {
-            'ehrlichiosis': {'diseaseName': 'Canine Ehrlichiosis', 'prediction': 'Negative', 'confidence': 85.0, 'findings': 'No intracytoplasmic morulae observed in leucocyte cytoplasm.', 'imageFindings': 'Clear cytoplasm.', 'cbcFindings': 'Mild thrombocytopenia.'},
-            'babesiosis': {'diseaseName': 'Canine Babesiosis', 'prediction': 'Positive', 'confidence': 94.2, 'findings': 'High count of intracellular piriform merozoites in pairs.', 'imageFindings': 'Intra-erythrocytic piriform merozoites detected in RBCs.', 'cbcFindings': 'Marked normocytic normochromic anemia.'},
-            'dirofilariasis': {'diseaseName': 'Canine Dirofilariasis', 'prediction': 'Negative', 'confidence': 95.0, 'findings': 'No circulating microfilariae detected in blood smear field.', 'imageFindings': 'No microfilarial structures.', 'cbcFindings': 'Normal eosinophil count.'},
-            'hepatozoonosis': {'diseaseName': 'Canine Hepatozoonosis', 'prediction': 'Negative', 'confidence': 90.0, 'findings': 'No Hepatozoon canis gamont capsules detected inside neutrophils.', 'imageFindings': 'Normal PMNs.', 'cbcFindings': 'WBC within baseline limits.'}
-        }
-        disease_predictions = data.get('diseasePredictions') or data.get('disease_predictions')
-        if disease_predictions is None:
-            disease_predictions = default_disease_predictions
-
-        default_annotations = {
-            'infectedRbcCount': 15,
-            'detectedParasitesCount': 20,
-            'avgConfidence': 92.5,
-            'parasitemiaPercent': 3.5,
-            'boxes': [
-                {'id': 1, 'label': 'Babesia Merozoite Pair', 'x': 30, 'y': 40, 'width': 15, 'height': 15, 'confidence': 95.0}
-            ]
-        }
-        image_annotations = data.get('imageAnnotations') or data.get('image_annotations')
-        if image_annotations is None:
-            image_annotations = default_annotations
-
-        default_fusion = {
-            'visualWeight': 0.65,
-            'hematologicalWeight': 0.35,
-            'fusionScore': 0.942,
-            'fusionExplanation': 'Deep late-fusion decision layer combined visual merozoites (65%) and anemic CBC indicators (35%).'
-        }
-        fusion_details = data.get('fusionDetails') or data.get('fusion_details') or default_fusion
-
-        default_review = {
-            'status': 'Pending',
-            'doctorName': '',
-            'reviewDate': '',
-            'comments': ''
-        }
-        doctor_review = data.get('doctorReview') or data.get('doctor_review') or default_review
-
-        initial_timeline = [
-            {'date': now().strftime('%Y-%m-%d %H:%M'), 'title': 'Patient Registered & Data Uploaded', 'actor': request.user.username if request.user.is_authenticated else 'Lab Technician'}
-        ]
-
-        patient = Patient.objects.create(
-            custom_id=custom_id,
-            dog_name=dog_name,
-            owner_name=owner_name,
-            age=age,
-            sex=sex,
-            breed=breed,
-            weight=weight,
-            contact_number=contact_number,
-            sample_date=sample_date,
-            status=status_val,
-            clinical_notes=clinical_notes,
-            blood_smear_image=blood_smear_image,
-            cbc_report_pdf=cbc_report_pdf,
-            cbc_data=cbc_data,
-            primary_prediction=data.get('primaryPrediction', 'Canine Babesiosis'),
-            overall_confidence=float(data.get('overallConfidence', 94.2)),
-            estimated_parasitemia=float(data.get('estimatedParasitemia', 3.5)),
-            zoonotic_risk=data.get('zoonoticRisk', 'Low'),
-            disease_predictions=disease_predictions,
-            image_annotations=image_annotations,
-            fusion_details=fusion_details,
-            doctor_review=doctor_review,
-            timeline=initial_timeline
-        )
-
-        return Response(PatientSerializer(patient).data, status=status.HTTP_201_CREATED)
-
-    @action(detail=True, methods=['post'], url_path='run-ai')
-    def run_ai_diagnosis(self, request, pk=None):
+    @action(detail=True, methods=['get'], url_path='download-report')
+    def download_report(self, request, pk=None):
+        from django.http import HttpResponse
+        from .report_pdf import build_report
         patient = self.get_object()
-        patient.status = 'Doctor Review'
-        
-        # Run real AI blood smear diagnosis if uploaded or available
-        image_input = request.FILES.get('image') or request.FILES.get('file')
-        if not image_input and patient.blood_smear_image:
-            image_input = patient.blood_smear_image
+        response = HttpResponse(build_report(patient), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{patient.custom_id}-screening-report.pdf"'
+        response['Cache-Control'] = 'private, no-store'
+        return response
 
-        ai_res = None
-        if image_input:
-            try:
-                ai_res = diagnose_blood_smear(image_input)
-            except Exception as e:
-                print(f"[AI Diagnosis Error] {e}")
+    @action(detail=False,methods=['get'],url_path='cbc-reference')
+    def cbc_reference(self,request):
+        return Response({'parameters':parameters(),'core':['rbc','pcv','hb','wbc','platelets']})
 
-        if ai_res:
-            if not ai_res.get('is_valid', True):
-                pred_dict = dict(patient.disease_predictions or {})
-                if 'babesiosis' in pred_dict:
-                    pred_dict['babesiosis']['prediction'] = 'Invalid Sample'
-                    pred_dict['babesiosis']['confidence'] = 0.0
-                    pred_dict['babesiosis']['findings'] = ai_res.get('status', 'Rejected: Non-microscopic image.')
-                    patient.disease_predictions = pred_dict
-                patient.primary_prediction = 'Invalid Sample / Non-Microscopic Slide'
-                patient.overall_confidence = 0.0
-                patient.status = 'Sample Rejected'
-
-                current_timeline = list(patient.timeline or [])
-                timestamp = now().strftime('%Y-%m-%d %H:%M')
-                current_timeline.append({
-                    'date': timestamp,
-                    'title': f"AI Cytology Validation Rejected: {ai_res.get('error', 'Non-microscopic slide')}",
-                    'actor': 'Microscopy Gatekeeper'
-                })
-                patient.timeline = current_timeline
-                patient.save()
-                return Response({
-                    'success': False,
-                    'error': ai_res.get('error') or ai_res.get('status'),
-                    'patient': PatientSerializer(patient).data,
-                    'ai_result': ai_res
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-            is_pos = ai_res.get('is_positive', False)
-            prob = float(ai_res.get('probability', 0.0)) * 100.0
-            confidence = float(ai_res.get('confidence', prob / 100.0 if is_pos else (100.0 - prob) / 100.0)) * 100.0
-            pred_dict = dict(patient.disease_predictions or {})
-            if 'babesiosis' not in pred_dict:
-                pred_dict['babesiosis'] = {
-                    'diseaseName': 'Canine Babesiosis',
-                    'prediction': 'Positive' if is_pos else 'Negative',
-                    'confidence': round(confidence, 1),
-                    'findings': ai_res.get('status', ''),
-                    'imageFindings': (
-                        'Intra-erythrocytic piriform merozoites detected by Neural Classifier (model.pkl).'
-                        if is_pos else
-                        'Clean erythrocytes, no intra-erythrocytic piroplasms detected.'
-                    ),
-                    'cbcFindings': 'Normocytic normochromic anemia.' if is_pos else 'CBC parameters within normal limits.'
-                }
-            else:
-                pred_dict['babesiosis']['prediction'] = 'Positive' if is_pos else 'Negative'
-                pred_dict['babesiosis']['confidence'] = round(confidence, 1)
-                pred_dict['babesiosis']['findings'] = ai_res.get('status', '')
-                pred_dict['babesiosis']['imageFindings'] = (
-                    'Intra-erythrocytic piriform merozoites detected by Neural Classifier (model.pkl).'
-                    if is_pos else
-                    'Clean erythrocytes, no intra-erythrocytic piroplasms detected.'
-                )
-            patient.disease_predictions = pred_dict
-            
-            if is_pos:
-                patient.primary_prediction = 'Canine Babesiosis'
-                patient.overall_confidence = round(confidence, 1)
-                patient.estimated_parasitemia = round(prob * 0.042, 1)
-                patient.image_annotations = {
-                    'infectedRbcCount': int(max(1, round(prob * 0.15))),
-                    'detectedParasitesCount': int(max(2, round(prob * 0.20))),
-                    'avgConfidence': round(confidence, 1),
-                    'parasitemiaPercent': round(prob * 0.042, 1),
-                    'boxes': [
-                        {'id': 1, 'label': 'Babesia Merozoite Pair', 'x': 32, 'y': 38, 'width': 16, 'height': 16, 'confidence': round(confidence, 1)}
-                    ]
-                }
-            else:
-                patient.primary_prediction = 'Canine Babesiosis (Negative)'
-                patient.overall_confidence = round(confidence, 1)
-                patient.estimated_parasitemia = 0.0
-                patient.image_annotations = {
-                    'infectedRbcCount': 0,
-                    'detectedParasitesCount': 0,
-                    'avgConfidence': round(confidence, 1),
-                    'parasitemiaPercent': 0.0,
-                    'boxes': []
-                }
-
-        current_timeline = list(patient.timeline or [])
-        timestamp = now().strftime('%Y-%m-%d %H:%M')
-        current_timeline.append({
-            'date': timestamp,
-            'title': 'AI Diagnosis & Multi-Modal Fusion Executed (Babesia NN)',
-            'actor': 'VetAI AI Engine v2.4'
-        })
-        current_timeline.append({
-            'date': timestamp,
-            'title': 'Submitted to Laboratory Verification Queue',
-            'actor': 'System'
-        })
-        patient.timeline = current_timeline
-        patient.save()
-
-        return Response({'success': True, 'patient': PatientSerializer(patient).data, 'ai_result': ai_res}, status=status.HTTP_200_OK)
-
-
-    @action(detail=True, methods=['post'], url_path='technician-review')
-    def submit_technician_review(self, request, pk=None):
-        return self.submit_doctor_review(request, pk)
-
-    @action(detail=True, methods=['post'], url_path='doctor-review')
-    def submit_doctor_review(self, request, pk=None):
-        patient = self.get_object()
-        action_type = request.data.get('action') # 'accept' or 'reject'
-        comments = request.data.get('comments', '')
-        reviewer_name = request.data.get('reviewerName') or request.data.get('technicianName') or request.data.get('doctorName') or 'Lab Technician'
-
-        is_accept = action_type == 'accept'
-        new_status = 'Diagnosis Complete' if is_accept else 'Re-diagnosis Requested'
-        review_status = 'Accepted' if is_accept else 'Re-diagnosis Requested'
-
-        patient.status = new_status
-        patient.doctor_review = {
-            'status': review_status,
-            'doctorName': reviewer_name,
-            'reviewDate': now().strftime('%Y-%m-%d %H:%M'),
-            'comments': comments or ('Accepted AI-assisted diagnosis findings.' if is_accept else 'Requested laboratory re-analysis.')
-        }
-
-        current_timeline = list(patient.timeline or [])
-        current_timeline.append({
-            'date': now().strftime('%Y-%m-%d %H:%M'),
-            'title': 'Laboratory Verification Approved' if is_accept else 'Re-diagnosis Requested by Laboratory Specialist',
-            'actor': reviewer_name
-        })
-        patient.timeline = current_timeline
-        patient.save()
-
-        return Response({'success': True, 'patient': PatientSerializer(patient).data}, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['patch', 'put'], url_path='update-cbc')
-    def update_cbc(self, request, pk=None):
-        patient = self.get_object()
-        new_cbc = request.data.get('cbcData') or request.data.get('cbc_data') or request.data
-        if new_cbc and isinstance(new_cbc, dict):
-            current_cbc = dict(patient.cbc_data or {})
-            current_cbc.update(new_cbc)
-            patient.cbc_data = current_cbc
+    @action(detail=True,methods=['post'],url_path='replace-files')
+    def replace_files(self,request,pk=None):
+        patient=self.get_object()
+        try:
+            report=save_pdf(request.FILES['report']) if 'report' in request.FILES else None
+            image=save_image(request.FILES['image']) if 'image' in request.FILES else None
+        except ValueError as exc:
+            return Response({'error':str(exc)},status=400)
+        if report is None and image is None:
+            return Response({'error':'Choose a report or image to replace'},status=400)
+        with transaction.atomic():
+            patient=Patient.objects.select_for_update().get(pk=patient.pk)
+            if report:
+                patient.cbc_report_pdf=report; patient.cbc_extraction={}; patient.cbc_data={}
+            if image:
+                patient.blood_smear_image=image
+            clear_results(patient)
+            patient.timeline=list(patient.timeline)+[dict(date=now().isoformat(),title='Clinical upload replaced; CBC review required again',actor='Technician')]
             patient.save()
-        return Response({'success': True, 'patient': PatientSerializer(patient).data}, status=status.HTTP_200_OK)
+        return self.result(patient)
+
+    @action(detail=True,methods=['post'],url_path='extract-cbc')
+    def extract_cbc(self,request,pk=None):
+        patient=self.get_object()
+        if patient.cbc_extraction and request.data.get('force') is not True:
+            return self.result(patient,extraction=patient.cbc_extraction)
+        original_revision=patient.cbc_revision
+        try:
+            extracted=extract_pdf(local_media_path(patient.cbc_report_pdf).read_bytes())
+        except ValueError as exc:
+            extracted=parse_text(''); extracted['warnings'].insert(0,str(exc))
+        clear_results(patient)
+        extraction={**extracted,'extractedAt':now().isoformat(),'report':patient.cbc_report_pdf}
+        # A single conditional UPDATE prevents concurrent extraction from overwriting reviews
+        # and avoids SQLite transaction lock upgrades during React development re-mounts.
+        changed=Patient.objects.filter(pk=patient.pk,cbc_revision=original_revision).update(
+            cbc_data=normalize_values(extracted['values']),cbc_extraction=extraction,cbc_confirmed=False,
+            cbc_analysis={},image_analysis={},fusion_details={},disease_predictions={},image_annotations={},
+            primary_prediction='Not analysed',overall_confidence=0.,status='Awaiting Diagnosis',
+            doctor_review={'status':'Pending','comments':''},cbc_revision=patient.cbc_revision,updated_at=now())
+        patient=Patient.objects.get(pk=patient.pk)
+        if not changed and (request.data.get('force') is True or not patient.cbc_extraction):
+            return Response({'error':'This record changed during extraction. Reload the latest review.'},status=409)
+        return self.result(patient,extraction=patient.cbc_extraction)
+
+    @action(detail=True,methods=['get'],url_path='files/(?P<kind>cbc|image|annotated)')
+    def asset(self,request,pk=None,kind=None):
+        patient=self.get_object()
+        value=patient.cbc_report_pdf if kind=='cbc' else patient.blood_smear_image if kind=='image' else patient.image_analysis.get('annotatedImage','')
+        try:
+            path=local_media_path(value)
+        except ValueError:
+            return Response({'error':'This uploaded file is unavailable'},status=404)
+        return FileResponse(path.open('rb'),content_type='application/pdf' if kind=='cbc' else 'image/png',
+                            filename='cbc-report.pdf' if kind=='cbc' else 'blood-smear.png',as_attachment=False)
+
+    @action(detail=True,methods=['patch','put'],url_path='update-cbc')
+    def update_cbc(self,request,pk=None):
+        patient=self.get_object()
+        if str(request.data.get('cbcRevision',''))!=str(patient.cbc_revision):
+            return Response({'error':'CBC values changed. Reload this record before confirming.'},status=409)
+        try:
+            values=normalize_values(request.data.get('cbcData',{}),required=True)
+            profile=request.data.get('referenceProfile','report')
+            analysis=analyze_cbc(values,patient.cbc_extraction.get('reportRanges',{}),profile)
+        except ValueError as exc:
+            return Response({'error':str(exc)},status=400)
+        if request.data.get('confirmed') is not True:
+            return Response({'error':'Confirm the extracted values and units before continuing'},status=400)
+        with transaction.atomic():
+            patient=Patient.objects.select_for_update().get(pk=patient.pk)
+            if str(patient.cbc_revision)!=str(request.data['cbcRevision']):
+                return Response({'error':'Another review changed these CBC values. Reload first.'},status=409)
+            clear_results(patient)
+            patient.cbc_data={k:dict(value=row['value'],status=row['status'],unit=row['unit']) for k,row in analysis['parameters'].items() if row['value'] is not None}
+            patient.cbc_analysis=analysis; patient.cbc_confirmed=True
+            patient.cbc_extraction={**patient.cbc_extraction,'review':dict(reviewedAt=now().isoformat(),referenceProfile=profile,
+                                      reviewedValues=values,reviewer=request.user.pk if request.user.is_authenticated else None)}
+            patient.timeline=list(patient.timeline)+[dict(date=now().isoformat(),title='CBC values reviewed and rule analysis completed',actor='Technician')]
+            patient.save()
+        return self.result(patient)
+
+    @action(detail=True,methods=['post'],url_path='run-ai')
+    def run_ai_diagnosis(self,request,pk=None):
+        patient=self.get_object()
+        with transaction.atomic():
+            patient=Patient.objects.select_for_update().get(pk=patient.pk)
+            if not patient.cbc_confirmed or not patient.cbc_analysis:
+                return Response({'error':'Extract, review and confirm CBC values before image analysis'},status=400)
+            if str(request.data.get('cbcRevision',''))!=str(patient.cbc_revision):
+                return Response({'error':'CBC review is stale. Reload and confirm again.'},status=409)
+            if patient.status=='Analysing':
+                return Response({'error':'Analysis is already running for this patient'},status=409)
+            revision=patient.cbc_revision
+            patient.status='Analysing'; patient.save(update_fields=['status'])
+            cbc=patient.cbc_analysis; image_url=patient.blood_smear_image
+        try:
+            image=run_image_analysis(image_url)
+        except Exception:
+            log.exception('Image analysis failed for patient %s',patient.custom_id)
+            image={'available':False,'reason':'Image analysis failed; CBC-only analysis is shown. You can retry the image later.'}
+        fusion=fuse_analyses(cbc,image)
+        with transaction.atomic():
+            patient=Patient.objects.select_for_update().get(pk=patient.pk)
+            if patient.cbc_revision!=revision or patient.blood_smear_image!=image_url or not patient.cbc_confirmed:
+                return Response({'error':'The record changed during inference. Review the latest CBC before rerunning.'},status=409)
+            patient.image_analysis=image; patient.fusion_details=fusion
+            patient.primary_prediction=fusion['prediction']; patient.overall_confidence=round(fusion['score']*100,2)
+            patient.estimated_parasitemia=0.; patient.zoonotic_risk='Not assessed'
+            patient.image_annotations={'boxes':image.get('boxes',[]),'detectedRegionsCount':len(image.get('boxes',[]))}
+            predictions={k:dict(diseaseName=name,available=False,prediction='Model not available',confidence=None,
+                                findings='Not analysed; this disease model is not integrated yet.') for k,name in DISEASES.items()}
+            predictions['ehrlichiosis']=dict(diseaseName=DISEASES['ehrlichiosis'],available=True,prediction=fusion['prediction'],
+                                            confidence=patient.overall_confidence,score=fusion['score'],mode=fusion['mode'],
+                                            findings=fusion['explanation'],imageFindings=image.get('warning',image.get('reason','')),
+                                            cbcFindings='; '.join(cbc['abnormalities']) or cbc['status'])
+            patient.disease_predictions=predictions; patient.status='Awaiting Verification'
+            patient.timeline=list(patient.timeline)+[dict(date=now().isoformat(),title='Ehrlichiosis image + CBC screening completed' if fusion['mode']=='multimodal' else 'CBC-only screening completed; image unavailable',actor='Screening engine')]
+            patient.save()
+        return self.result(patient,ai_result=image)
+
+    @action(detail=True,methods=['post'],url_path='technician-review')
+    def submit_technician_review(self,request,pk=None):
+        return self.submit_doctor_review(request,pk)
+
+    @action(detail=True,methods=['post'],url_path='doctor-review')
+    def submit_doctor_review(self,request,pk=None):
+        patient=self.get_object()
+        if not patient.fusion_details.get('mode'):
+            return Response({'error':'Run the current CBC and image workflow before verification'},status=400)
+        action_type=request.data.get('action')
+        if action_type not in {'accept','reject','rediagnose'}:
+            return Response({'error':'Choose accept or reject'},status=400)
+        accepted=action_type=='accept'
+        patient.status='Diagnosis Complete' if accepted else 'Re-diagnosis Requested'
+        patient.doctor_review=dict(status='Accepted' if accepted else 'Re-diagnosis Requested',doctorName=request.data.get('reviewerName','Technician'),
+                                   reviewDate=now().isoformat(),comments=request.data.get('comments',''))
+        patient.timeline=list(patient.timeline)+[dict(date=now().isoformat(),title='Screening review accepted' if accepted else 'Re-analysis requested',actor=patient.doctor_review['doctorName'])]
+        patient.save()
+        return self.result(patient)

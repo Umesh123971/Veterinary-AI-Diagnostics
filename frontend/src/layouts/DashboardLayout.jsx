@@ -27,15 +27,15 @@ export const DashboardLayout = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex font-sans">
       {/* Sidebar */}
-      <Sidebar />
+      <div className="print:hidden"><Sidebar /></div>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Navbar */}
-        <TopNav title={getPageTitle(location.pathname)} />
+        <div className="print:hidden"><TopNav title={getPageTitle(location.pathname)} /></div>
 
         {/* Content Container */}
-        <main className="flex-1 overflow-y-auto p-6 space-y-6">
+        <main className="flex-1 overflow-y-auto p-6 space-y-6 print:p-0 print:overflow-visible">
           <Outlet />
 
           {/* Persistent subtle footer research disclaimer */}

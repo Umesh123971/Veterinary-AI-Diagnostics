@@ -1,6 +1,8 @@
+import uuid
 from django.db import models
 
 STATUS_CHOICES = (
+    ('Analysing', 'Analysing'),
     ('Awaiting Diagnosis', 'Awaiting Diagnosis'),
     ('Doctor Review', 'Doctor Review'),
     ('Awaiting Verification', 'Awaiting Verification'),
@@ -28,11 +30,17 @@ class Patient(models.Model):
     # Extracted CBC Data
     cbc_data = models.JSONField(default=dict, blank=True)
 
+    cbc_extraction = models.JSONField(default=dict, blank=True)
+    cbc_analysis = models.JSONField(default=dict, blank=True)
+    image_analysis = models.JSONField(default=dict, blank=True)
+    cbc_confirmed = models.BooleanField(default=False)
+    cbc_revision = models.UUIDField(default=uuid.uuid4, editable=False)
+
     # AI Diagnosis Predictions
-    primary_prediction = models.CharField(max_length=100, default='Canine Babesiosis')
-    overall_confidence = models.FloatField(default=90.0)
-    estimated_parasitemia = models.FloatField(default=3.5)
-    zoonotic_risk = models.CharField(max_length=50, default='Low')
+    primary_prediction = models.CharField(max_length=100, default='Not analysed')
+    overall_confidence = models.FloatField(default=0.0)
+    estimated_parasitemia = models.FloatField(default=0.0)
+    zoonotic_risk = models.CharField(max_length=50, default='Not assessed')
 
     # Comprehensive multi-disease predictions breakdown
     disease_predictions = models.JSONField(default=dict, blank=True)

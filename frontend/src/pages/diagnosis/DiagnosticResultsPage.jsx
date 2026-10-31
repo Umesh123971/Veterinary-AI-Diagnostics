@@ -44,7 +44,7 @@ export const DiagnosticResultsPage = () => {
                 <th className="py-3 px-4">Dog Name</th>
                 <th className="py-3 px-4">Sample Date</th>
                 <th className="py-3 px-4">Primary Prediction</th>
-                <th className="py-3 px-4">Confidence</th>
+                <th className="py-3 px-4">Screening score</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4">Verification Sign-Off</th>
                 <th className="py-3 px-4 text-right">Actions</th>
@@ -57,12 +57,12 @@ export const DiagnosticResultsPage = () => {
                   <td className="py-3 px-4 font-bold text-slate-900">{patient.dogName}</td>
                   <td className="py-3 px-4 text-slate-500 font-mono">{patient.sampleDate}</td>
                   <td className="py-3 px-4 font-semibold text-slate-800">
-                    <Badge variant={patient.primaryPrediction.includes('Negative') ? 'Negative' : 'Positive'}>
-                      {patient.primaryPrediction}
+                    <Badge variant={patient.fusionDetails?.mode ? 'warning' : 'default'}>
+                      {patient.fusionDetails?.mode ? patient.primaryPrediction : 'Not analysed by current workflow'}
                     </Badge>
                   </td>
                   <td className="py-3 px-4 font-mono font-bold text-teal-600">
-                    {patient.overallConfidence}%
+                    {patient.fusionDetails?.mode ? `${patient.overallConfidence}%` : '-'}
                   </td>
                   <td className="py-3 px-4">
                     <Badge variant={patient.status}>{patient.status}</Badge>

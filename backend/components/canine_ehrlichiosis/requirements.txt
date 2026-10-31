@@ -1,0 +1,6 @@
+ultralytics>=8.3,<9
+torch>=2.5
+torchvision>=0.20
+Pillow>=10
+numpy>=1.26
+streamlit>=1.66,<2

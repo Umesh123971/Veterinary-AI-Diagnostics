@@ -14,7 +14,7 @@ export const AppProvider = ({ children }) => {
     return MOCK_USERS[0];
   }); 
   const [users, setUsers] = useState(MOCK_USERS);
-  const [patients, setPatients] = useState(MOCK_PATIENTS);
+  const [patients, setPatients] = useState([]);
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
   const [isBackendConnected, setIsBackendConnected] = useState(false);
 
@@ -38,7 +38,7 @@ export const AppProvider = ({ children }) => {
             }
             setIsBackendConnected(true);
           }
-          if (fetchedPatients && Array.isArray(fetchedPatients) && fetchedPatients.length > 0) {
+          if (fetchedPatients && Array.isArray(fetchedPatients)) {
             setPatients(fetchedPatients);
           }
           if (fetchedNotifs && Array.isArray(fetchedNotifs) && fetchedNotifs.length > 0) {
@@ -147,184 +147,26 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Patient Actions
-  const addPatient = async (newPatientData) => {
-    const id = `PAT-2026-00${patients.length + 1}`;
-    const patientObj = {
-      id,
-      dogName: newPatientData.dogName || 'Unnamed Dog',
-      ownerName: newPatientData.ownerName || 'Unknown Owner',
-      age: newPatientData.age || '3 years',
-      sex: newPatientData.sex || 'Male',
-      breed: newPatientData.breed || 'Mixed Breed',
-      weight: newPatientData.weight || '20.0 kg',
-      contactNumber: newPatientData.contactNumber || '+94 77 000 0000',
-      sampleDate: newPatientData.sampleDate || new Date().toISOString().split('T')[0],
-      status: newPatientData.status || 'Awaiting Diagnosis',
-      clinicalNotes: newPatientData.clinicalNotes || '',
-      bloodSmearImage: newPatientData.bloodSmearImage || newPatientData.bloodSmearFile?.url || 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=800&auto=format&fit=crop&q=80',
-      cbcReportPdf: newPatientData.cbcReportPdf || `${newPatientData.dogName || 'Patient'}_CBC_Report.pdf`,
-      cbcData: newPatientData.cbcData || {
-        rbc: { value: 4.5, status: 'Low' },
-        pcv: { value: 30, status: 'Low' },
-        hb: { value: 10.0, status: 'Low' },
-        wbc: { value: 13.0, status: 'Normal' },
-        platelets: { value: 170, status: 'Low' },
-        neutrophils: { value: 70, status: 'Normal' },
-        lymphocytes: { value: 18, status: 'Normal' },
-        monocytes: { value: 7, status: 'Normal' },
-        eosinophils: { value: 4, status: 'Normal' },
-        basophils: { value: 1, status: 'Normal' },
-      },
-      primaryPrediction: newPatientData.primaryPrediction || 'Canine Babesiosis',
-      overallConfidence: newPatientData.overallConfidence !== undefined ? newPatientData.overallConfidence : 94.2,
-      estimatedParasitemia: newPatientData.estimatedParasitemia !== undefined ? newPatientData.estimatedParasitemia : 3.5,
-      zoonoticRisk: newPatientData.zoonoticRisk || 'Low',
-      diseasePredictions: newPatientData.diseasePredictions || {
-        ehrlichiosis: { diseaseName: 'Canine Ehrlichiosis', prediction: 'Negative', confidence: 85.0, findings: 'No morulae observed.', imageFindings: 'Clear cytoplasm.', cbcFindings: 'Mild thrombocytopenia.' },
-        babesiosis: { diseaseName: 'Canine Babesiosis', prediction: 'Positive', confidence: 94.2, findings: 'Intra-erythrocytic piriform merozoites.', imageFindings: 'Piriform merozoites in RBCs.', cbcFindings: 'Normocytic normochromic anemia.' },
-        dirofilariasis: { diseaseName: 'Canine Dirofilariasis', prediction: 'Negative', confidence: 95.0, findings: 'No microfilariae.', imageFindings: 'No elongated structures.', cbcFindings: 'Normal eosinophils.' },
-        hepatozoonosis: { diseaseName: 'Canine Hepatozoonosis', prediction: 'Negative', confidence: 90.0, findings: 'No gamont capsules.', imageFindings: 'Normal PMNs.', cbcFindings: 'WBC within limits.' }
-      },
-      imageAnnotations: newPatientData.imageAnnotations || {
-        infectedRbcCount: 15,
-        detectedParasitesCount: 20,
-        avgConfidence: 92.0,
-        parasitemiaPercent: 3.5,
-        boxes: [
-          { id: 1, label: 'Babesia Pair', x: 30, y: 40, width: 15, height: 15, confidence: 95.0 }
-        ]
-      },
-      fusionDetails: newPatientData.fusionDetails || {
-        visualWeight: 0.65,
-        hematologicalWeight: 0.35,
-        fusionScore: 0.942,
-        fusionExplanation: 'Deep late-fusion decision layer combined visual merozoites (65%) and anemic CBC indicators (35%).'
-      },
-      doctorReview: {
-        status: 'Pending',
-        doctorName: '',
-        reviewDate: '',
-        comments: ''
-      },
-      timeline: [
-        { date: new Date().toLocaleString(), title: 'Patient Registered & Data Uploaded', actor: currentUser?.name || 'Lab Tech' },
-      ]
-    };
-
-    setPatients(prev => [patientObj, ...prev]);
-
-    addNotification({
-      title: 'New Patient Registered',
-      message: `${patientObj.dogName} (${patientObj.breed}) added for diagnostic analysis.`,
-      type: 'info'
-    });
-
-    try {
-      const apiRes = await patientsApi.create(patientObj);
-      if (apiRes && apiRes.id) {
-        setPatients(prev => prev.map(p => p.id === id ? apiRes : p));
-      }
-    } catch (err) {
-      console.warn('Patient created locally (Django API offline).');
-    }
-
-    return patientObj;
+  // Clinical records are persisted by the backend; failed requests never create demo results.
+  const syncPatient = patient => {
+    setPatients(previous => previous.some(p => p.id === patient.id)
+      ? previous.map(p => p.id === patient.id ? patient : p) : [patient,...previous]);
+    return patient;
+  };
+  const refreshPatient = async id => syncPatient(await patientsApi.getById(id));
+  const addPatient = async data => syncPatient(await patientsApi.create(data));
+  const updatePatientCbc = async (id,values,options) => {
+    const response=await patientsApi.updateCbc(id,values,options);
+    return syncPatient(response.patient);
+  };
+  const runAiDiagnosis = async (id,options={}) => {
+    const response=await patientsApi.runAiDiagnosis(id,options);
+    return syncPatient(response.patient);
   };
 
-  const updatePatientCbc = async (patientId, newCbcValues) => {
-    setPatients(prev => prev.map(p => {
-      if (p.id === patientId) {
-        return {
-          ...p,
-          cbcData: { ...p.cbcData, ...newCbcValues }
-        };
-      }
-      return p;
-    }));
-
-    try {
-      await patientsApi.updateCbc(patientId, newCbcValues);
-    } catch (err) {
-      console.warn('CBC updated locally.');
-    }
-  };
-
-  const runAiDiagnosis = async (patientId, imageInput = null) => {
-    setPatients(prev => prev.map(p => {
-      if (p.id === patientId) {
-        return {
-          ...p,
-          status: 'Doctor Review',
-          timeline: [
-            ...p.timeline,
-            { date: new Date().toLocaleString(), title: 'AI Diagnosis & Multi-Modal Fusion Executed', actor: 'VetAI AI Engine v2.4' },
-            { date: new Date().toLocaleString(), title: 'Submitted to Laboratory Verification Queue', actor: 'System' }
-          ]
-        };
-      }
-      return p;
-    }));
-
-    addNotification({
-      title: 'AI Diagnosis Complete',
-      message: `Multi-modal fusion completed for patient ${patientId}. Ready for laboratory verification sign-off.`,
-      type: 'success'
-    });
-
-    try {
-      const res = await patientsApi.runAiDiagnosis(patientId, imageInput);
-      if (res && res.patient) {
-        setPatients(prev => prev.map(p => p.id === patientId ? res.patient : p));
-      }
-    } catch (err) {
-      console.warn('AI Diagnosis executed locally.');
-    }
-  };
-
-  const submitDoctorReview = async (patientId, action, comments) => {
-    const isAccept = action === 'accept';
-    const reviewerName = currentUser?.name || 'Lab Specialist';
-
-    setPatients(prev => prev.map(p => {
-      if (p.id === patientId) {
-        const newStatus = isAccept ? 'Diagnosis Complete' : 'Re-diagnosis Requested';
-        return {
-          ...p,
-          status: newStatus,
-          doctorReview: {
-            status: isAccept ? 'Accepted' : 'Re-diagnosis Requested',
-            doctorName: reviewerName,
-            reviewDate: new Date().toLocaleString(),
-            comments: comments || (isAccept ? 'Accepted AI-assisted diagnosis findings.' : 'Requested laboratory re-analysis.')
-          },
-          timeline: [
-            ...p.timeline,
-            { 
-              date: new Date().toLocaleString(), 
-              title: isAccept ? 'Laboratory Verification Approved' : 'Re-diagnosis Requested by Laboratory Specialist', 
-              actor: reviewerName 
-            }
-          ]
-        };
-      }
-      return p;
-    }));
-
-    addNotification({
-      title: action === 'accept' ? 'Laboratory Sign-Off Approved' : 'Re-diagnosis Requested',
-      message: `Laboratory verification submitted for case ${patientId}. Status updated to ${action === 'accept' ? 'Diagnosis Complete' : 'Re-diagnosis Requested'}.`,
-      type: action === 'accept' ? 'success' : 'warning'
-    });
-
-    try {
-      const res = await patientsApi.submitDoctorReview(patientId, action, comments, reviewerName);
-      if (res && res.patient) {
-        setPatients(prev => prev.map(p => p.id === patientId ? res.patient : p));
-      }
-    } catch (err) {
-      console.warn('Verification review saved locally.');
-    }
+  const submitDoctorReview = async (id,action,comments) => {
+    const response=await patientsApi.submitDoctorReview(id,action,comments,currentUser?.name || 'Technician');
+    return syncPatient(response.patient);
   };
 
   const addNotification = async (notif) => {
@@ -377,6 +219,8 @@ export const AppProvider = ({ children }) => {
       updateUser,
       deleteUser,
       addPatient,
+      syncPatient,
+      refreshPatient,
       updatePatientCbc,
       runAiDiagnosis,
       submitDoctorReview,

@@ -1,118 +1,34 @@
-const API_BASE_URL = 'http://localhost:8000/api';
-
-/**
- * Generic fetch wrapper with error handling
- */
-async function fetchApi(endpoint, options = {}) {
-  const url = `${API_BASE_URL}${endpoint}`;
-  const defaultHeaders = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  };
-
-  const config = {
-    ...options,
-    headers: {
-      ...defaultHeaders,
-      ...options.headers,
-    },
-  };
-
-  if (config.body && typeof config.body === 'object') {
-    config.body = JSON.stringify(config.body);
-  }
-
-  try {
-    const response = await fetch(url, config);
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `API Error: ${response.status} ${response.statusText}`);
-    }
-    return await response.json();
-  } catch (err) {
-    console.warn(`[VetAI API] Call to ${endpoint} failed, fallback to local state:`, err.message);
-    throw err;
-  }
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+export async function fetchApi(endpoint, options = {}) {
+  const multipart = options.body instanceof FormData;
+  const headers = { Accept: 'application/json', ...(!multipart && options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers };
+  const body = options.body && typeof options.body === 'object' && !multipart ? JSON.stringify(options.body) : options.body;
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers, body });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || data.message || data.detail || `Request failed (${response.status})`);
+  return data;
 }
-
-// Authentication API
 export const authApi = {
-  login: (email, password) => fetchApi('/auth/login/', { method: 'POST', body: { email, password } }),
-  logout: () => fetchApi('/auth/logout/', { method: 'POST' }),
-  me: () => fetchApi('/auth/me/'),
+  login: (email,password) => fetchApi('/auth/login/',{method:'POST',body:{email,password}}),
+  logout: () => fetchApi('/auth/logout/',{method:'POST'}), me: () => fetchApi('/auth/me/'),
 };
-
-// Users API
 export const usersApi = {
-  getAll: () => fetchApi('/users/'),
-  getById: (id) => fetchApi(`/users/${id}/`),
-  create: (userData) => fetchApi('/users/', { method: 'POST', body: userData }),
-  update: (id, userData) => fetchApi(`/users/${id}/`, { method: 'PATCH', body: userData }),
-  delete: (id) => fetchApi(`/users/${id}/`, { method: 'DELETE' }),
+  getAll: () => fetchApi('/users/'), getById: id => fetchApi(`/users/${id}/`),
+  create: data => fetchApi('/users/',{method:'POST',body:data}),
+  update: (id,data) => fetchApi(`/users/${id}/`,{method:'PATCH',body:data}),
+  delete: id => fetchApi(`/users/${id}/`,{method:'DELETE'}),
 };
-
-// Diagnostics & Patients API
 export const patientsApi = {
-  getAll: () => fetchApi('/patients/'),
-  getById: (id) => fetchApi(`/patients/${id}/`),
-  create: (patientData) => fetchApi('/patients/', { method: 'POST', body: patientData }),
-  runAiDiagnosis: (id, imageInput = null) => {
-    if (imageInput) {
-      if (imageInput instanceof File || imageInput instanceof Blob) {
-        const formData = new FormData();
-        formData.append('image', imageInput);
-        return fetch(`${API_BASE_URL}/patients/${id}/run-ai/`, {
-          method: 'POST',
-          body: formData,
-        }).then(r => r.json());
-      } else {
-        return fetchApi(`/patients/${id}/run-ai/`, {
-          method: 'POST',
-          body: { image: imageInput }
-        });
-      }
-    }
-    return fetchApi(`/patients/${id}/run-ai/`, { method: 'POST' });
-  },
-  analyzeBloodSmear: async (imageInput) => {
-    let res;
-    if (imageInput instanceof File || imageInput instanceof Blob) {
-      const formData = new FormData();
-      formData.append('image', imageInput);
-      res = await fetch(`${API_BASE_URL}/patients/analyze-image/`, {
-        method: 'POST',
-        body: formData,
-      });
-    } else {
-      res = await fetch(`${API_BASE_URL}/patients/analyze-image/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: imageInput }),
-      });
-    }
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(data.error || data.status || `Analysis failed: ${res.status}`);
-    }
-    return data;
-  },
-  submitDoctorReview: (id, action, comments, reviewerName) => 
-    fetchApi(`/patients/${id}/technician-review/`, { method: 'POST', body: { action, comments, reviewerName, doctorName: reviewerName } }),
-  submitTechnicianReview: (id, action, comments, reviewerName) => 
-    fetchApi(`/patients/${id}/technician-review/`, { method: 'POST', body: { action, comments, reviewerName, doctorName: reviewerName } }),
-  updateCbc: (id, cbcData) => fetchApi(`/patients/${id}/update-cbc/`, { method: 'PATCH', body: { cbcData } }),
+  getAll: () => fetchApi('/patients/'), getById: id => fetchApi(`/patients/${id}/`),
+  create: data => fetchApi('/patients/',{method:'POST',body:data}),
+  cbcReference: () => fetchApi('/patients/cbc-reference/'),
+  extractCbc: (id,force=false) => fetchApi(`/patients/${id}/extract-cbc/`,{method:'POST',body:{force}}),
+  replaceFiles: (id,data) => fetchApi(`/patients/${id}/replace-files/`,{method:'POST',body:data}),
+  updateCbc: (id,cbcData,options={}) => fetchApi(`/patients/${id}/update-cbc/`,{method:'PATCH',body:{cbcData,...options}}),
+  runAiDiagnosis: (id,options={}) => fetchApi(`/patients/${id}/run-ai/`,{method:'POST',body:options}),
+  submitDoctorReview: (id,action,comments,reviewerName) => fetchApi(`/patients/${id}/technician-review/`,{method:'POST',body:{action,comments,reviewerName}}),
+  submitTechnicianReview: (id,action,comments,reviewerName) => patientsApi.submitDoctorReview(id,action,comments,reviewerName),
 };
-
-export const diagnosticsApi = patientsApi;
-
-// Notifications API
-export const notificationsApi = {
-  getAll: () => fetchApi('/notifications/'),
-  markRead: (id) => fetchApi(`/notifications/${id}/read/`, { method: 'PATCH' }),
-  clearAll: () => fetchApi('/notifications/clear/', { method: 'POST' }),
-};
-
-// Analytics API
-export const analyticsApi = {
-  getOverview: () => fetchApi('/analytics/overview/'),
-};
+export const diagnosticsApi=patientsApi;
+export const notificationsApi={getAll:()=>fetchApi('/notifications/'),markRead:id=>fetchApi(`/notifications/${id}/read/`,{method:'PATCH'}),clearAll:()=>fetchApi('/notifications/clear/',{method:'POST'})};
+export const analyticsApi={getOverview:()=>fetchApi('/analytics/overview/')};

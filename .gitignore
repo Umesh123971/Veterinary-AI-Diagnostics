@@ -57,3 +57,8 @@ backend/.env
 *.ckpt
 checkpoints/
 backend/diagnostics/model.pkl
+
+# Generated local verification artifacts
+tmp/
+frontend/test-results/
+frontend/playwright-report/

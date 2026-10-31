@@ -130,3 +130,7 @@ REST_FRAMEWORK = {
 # CORS Settings
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+
+# CBC reports and microscope uploads are validated individually by diagnostics.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 40 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024

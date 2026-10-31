@@ -12,6 +12,7 @@ import { TechnicianReviewPage } from '../pages/technician/TechnicianReviewPage';
 import { PatientListPage } from '../pages/patients/PatientListPage';
 import { PatientDetailPage } from '../pages/patients/PatientDetailPage';
 import { DiagnosticResultsPage } from '../pages/diagnosis/DiagnosticResultsPage';
+import { CbcReviewDiagnosis } from '../pages/diagnosis/CbcReviewDiagnosis';
 import { DiagnosticResultPage } from '../pages/diagnosis/DiagnosticResultPage';
 import { ReportsListPage } from '../pages/reports/ReportsListPage';
 import { ViewReportPage } from '../pages/reports/ViewReportPage';
@@ -52,6 +53,7 @@ export const AppRoutes = () => {
         <Route path="patients" element={<PatientListPage />} />
         <Route path="patients/new" element={<AddPatientWizard />} />
         <Route path="patients/:id" element={<PatientDetailPage />} />
+        <Route path="patients/:id/diagnose" element={<CbcReviewDiagnosis />} />
 
         {/* Diagnostic Results */}
         <Route path="diagnosis/workflow" element={<Navigate to="/results" replace />} />
